@@ -1,14 +1,19 @@
-# Medical Knowledge Graph: Your Research Partner
+# Medical Knowledge Graph: Detailed Documentation
 
-## What This Does for You
+> **Looking for the quick pitch?** See [CLINICIAN_PITCH.md](CLINICIAN_PITCH.md) for a concise overview.
+>
+> This document provides comprehensive information about capabilities, use cases, technology, and implementation details.
 
-Imagine having a research assistant who has read every relevant paper on PubMed and can instantly answer questions like:
+## What This Does
 
-- **"What treatments work for BRCA1-mutated breast cancer?"** — Not just a list, but with evidence strength, response rates, and the actual papers to review
-- **"What are the side effects of combining Drug A with Drug B?"** — Including rare interactions buried in case reports
-- **"Show me contradicting evidence about Drug X for Disease Y"** — Because medicine evolves, and knowing where experts disagree matters
+This system reads medical research papers, extracts relationships between diseases, genes, drugs, and treatments, and lets you query that knowledge in plain English.
 
-This system does exactly that. It reads medical research papers, understands the relationships between diseases, genes, drugs, and treatments, and lets you query that knowledge in plain English.
+Ask complex questions like:
+- **"What treatments work for BRCA1-mutated breast cancer?"** — Get evidence strength, response rates, and source papers
+- **"What are the side effects of combining Drug A with Drug B?"** — Including rare interactions from case reports
+- **"Show me contradicting evidence about Drug X for Disease Y"** — See both supporting and conflicting studies
+
+You get structured answers with confidence scores, source citations, and contradictions flagged.
 
 ## Why This Matters
 
@@ -116,22 +121,15 @@ CURRENT CONSENSUS:
 
 You see the evolution of medical thinking, understand why guidelines have changed, and can make informed decisions with your patients.
 
-## How It Works (The Simple Version)
+## How It Works (Simple Version)
 
-Think of this system as three things working together:
+1. **Reads research papers** from PubMed Central (millions of articles)
+2. **Extracts medical facts**: "Drug X treats Disease Y," "Gene A increases risk of Disease B"
+3. **Stores relationships** in a knowledge graph (concepts connected by evidence)
+4. **Answers plain-English questions** by searching both semantic meaning and structured relationships
+5. **Ranks by evidence strength** and shows you the source papers
 
-### 1. **The Reader**
-The system downloads medical papers from PubMed Central and reads them—not just skimming for keywords, but actually understanding what they say about diseases, drugs, genes, and treatments.
-
-### 2. **The Brain**
-It extracts the important facts: "This drug treats this disease," "This gene increases risk for this condition," "These two drugs interact badly." It stores these facts in a knowledge graph (imagine a giant web where dots are medical concepts and lines show how they relate).
-
-### 3. **The Search Engine**
-When you ask a question in plain English, it understands what you're asking and searches both:
-- For papers semantically similar to your question (finds relevant research even if it uses different words)
-- For specific relationships in the knowledge graph (finds exact connections: Drug A → treats → Disease B)
-
-Then it combines both results, ranks them by evidence strength, and gives you a clear answer with sources.
+That's it. You don't need to understand the technology to use it.
 
 ## What Kind of Questions Can You Ask?
 
@@ -160,33 +158,6 @@ The system handles questions that require connecting multiple pieces of informat
 **Evidence Quality:**
 - "Show me high-confidence treatments for rheumatoid arthritis"
 - "What's the evidence quality for colchicine in COVID-19?"
-
-## An Example Query (For the Curious)
-
-You don't need to know this to use the system—you just type questions in English. But if you're curious about what happens under the hood, here's one example:
-
-**Your question:** "What drugs treat BRCA1-mutated breast cancer?"
-
-**The system translates this to:**
-```
-Find all:
-  - Drugs (variable: drug)
-  - Connected to Diseases named "Breast Cancer" (variable: disease)
-  - Through a TREATS relationship (variable: treats)
-  - Where the Disease is also connected to Gene "BRCA1"
-  - Through an INCREASES_RISK relationship
-
-Return:
-  - drug.name
-  - treats.efficacy
-  - treats.response_rate
-  - treats.source_papers
-
-Order by:
-  - treats.confidence (highest first)
-```
-
-The system then searches its knowledge graph, finds all the connections, and returns results ranked by evidence strength.
 
 ## What Makes the Answers Trustworthy?
 
@@ -225,32 +196,6 @@ Medical knowledge changes. The system tracks *when* each finding was published, 
 - Very recent research (there's a processing lag)
 - Clinical trial databases (though this could be added)
 - Textbook knowledge not in research papers
-
-## The Technology (Very High Level)
-
-For those who want to understand what's happening behind the scenes:
-
-**Data Source:** Research papers from PubMed Central (millions of articles available as structured XML files)
-
-**Entity Extraction:** The system identifies medical concepts in papers:
-- Diseases (mapped to standard IDs like UMLS codes)
-- Genes (mapped to HGNC gene symbols)
-- Drugs (mapped to RxNorm medication codes)
-- Proteins, symptoms, procedures, biomarkers, etc.
-
-**Relationship Detection:** It finds connections: "Drug X treats Disease Y," "Gene A increases risk of Disease B," "Drug X interacts with Drug Y"
-
-**Storage:**
-- **Vector Database (OpenSearch):** Stores mathematical representations of text meaning, enabling semantic search
-- **Knowledge Graph (Neptune):** Stores entities and their relationships, enabling connection-based queries
-
-**Query Interface:**
-- Type questions in plain English
-- AI (Claude 3.5) converts your question into a structured query
-- System searches both the vector database and knowledge graph
-- Results are synthesized, ranked by confidence, and returned with source citations
-
-**Standards-Based:** Uses medical standards like UMLS (Unified Medical Language System), MeSH (Medical Subject Headings), HGNC (gene nomenclature), and RxNorm (medication names) to ensure consistency.
 
 ## Getting Started
 
@@ -377,8 +322,23 @@ The goal is to give every clinician the equivalent of a research team working 24
 
 ---
 
-**Built with:** AWS Bedrock (Claude AI), Amazon OpenSearch (vector search), Amazon Neptune (knowledge graph), PubMed Central (research papers)
+## Technology Appendix (For Those Who Want Details)
 
-**Standards:** UMLS, MeSH, HGNC, RxNorm, ICD-10, CPT
+**Data Source:** PubMed Central research papers (structured XML)
 
-**For more information:** See [README.md](README.md) for technical details, or contact your health informatics team about a pilot deployment.
+**Processing Pipeline:**
+1. Entity extraction: Identifies diseases, genes, drugs, proteins, etc. using medical NLP
+2. Relationship detection: Finds connections ("Drug X treats Disease Y")
+3. Standardization: Maps to UMLS, MeSH, HGNC, RxNorm for consistency
+
+**Storage & Search:**
+- **Vector database (Amazon OpenSearch):** Semantic search across paper content
+- **Knowledge graph (Amazon Neptune):** Structured relationships between entities
+- **AI query interface (Claude 3.5 via AWS Bedrock):** Converts plain English to structured queries
+
+**Why this architecture:**
+- Vector search finds relevant papers even when terminology differs
+- Graph queries find exact entity relationships with evidence
+- Combining both gives comprehensive, precise results
+
+**For technical implementation details:** See [README.md](README.md) or contact your IT team about deployment.
