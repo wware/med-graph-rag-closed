@@ -519,5 +519,120 @@ def build_disease_corpus(disease: str,
     return corpus_dir
 
 
+def main():
+    """Main CLI interface"""
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser(
+        description='Download papers from PubMed Central',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Download papers on a specific topic
+  python -m src.scripts.download_papers \\
+      --query "breast cancer BRCA1" \\
+      --max-results 50 \\
+      --output-dir papers/brca1
+
+  # Filter by date range
+  python -m src.scripts.download_papers \\
+      --query "diabetes treatment" \\
+      --start-date 2020/01/01 \\
+      --end-date 2023/12/31 \\
+      --output-dir papers/diabetes
+
+  # Run examples
+  python -m src.scripts.download_papers --examples
+        """
+    )
+
+    parser.add_argument(
+        '--query',
+        help='Search query (e.g., "breast cancer BRCA1")'
+    )
+    parser.add_argument(
+        '--max-results',
+        type=int,
+        default=100,
+        help='Maximum number of results to download (default: 100)'
+    )
+    parser.add_argument(
+        '--output-dir',
+        help='Directory to save downloaded papers'
+    )
+    parser.add_argument(
+        '--start-date',
+        help='Filter by publication date - start (YYYY/MM/DD format)'
+    )
+    parser.add_argument(
+        '--end-date',
+        help='Filter by publication date - end (YYYY/MM/DD format)'
+    )
+    parser.add_argument(
+        '--email',
+        default=os.environ.get('NCBI_EMAIL', 'user@example.com'),
+        help='Email address for NCBI (required). Can also use NCBI_EMAIL env var'
+    )
+    parser.add_argument(
+        '--api-key',
+        default=os.environ.get('NCBI_API_KEY'),
+        help='NCBI API key (optional, increases rate limit). Can also use NCBI_API_KEY env var'
+    )
+    parser.add_argument(
+        '--examples',
+        action='store_true',
+        help='Run example usage demonstrations'
+    )
+
+    args = parser.parse_args()
+
+    # Run examples if requested
+    if args.examples:
+        example_usage()
+        return
+
+    # Validate required arguments
+    if not args.query:
+        parser.error('--query is required (or use --examples to see demonstrations)')
+    if not args.output_dir:
+        parser.error('--output-dir is required')
+
+    # Initialize fetcher
+    print(f"Initializing PubMed Central fetcher...")
+    print(f"Email: {args.email}")
+    if args.api_key:
+        print(f"API Key: {'*' * 8}{args.api_key[-4:]}")
+
+    fetcher = PubMedCentralFetcher(
+        email=args.email,
+        api_key=args.api_key
+    )
+
+    # Search and download
+    print(f"\nSearching for: {args.query}")
+    print(f"Max results: {args.max_results}")
+    if args.start_date or args.end_date:
+        print(f"Date range: {args.start_date or 'any'} to {args.end_date or 'any'}")
+    print(f"Output directory: {args.output_dir}")
+    print()
+
+    result = fetcher.search_and_download(
+        query=args.query,
+        output_dir=Path(args.output_dir),
+        max_results=args.max_results,
+        start_date=args.start_date,
+        end_date=args.end_date
+    )
+
+    print(f"\n{'='*60}")
+    print(f"Download complete!")
+    print(f"{'='*60}")
+    print(f"Successful: {result['success']}")
+    print(f"Failed: {result['failed']}")
+    print(f"Total: {result['total']}")
+    print(f"\nFiles saved to: {args.output_dir}")
+
+
 if __name__ == '__main__':
-    example_usage()
+    main()
