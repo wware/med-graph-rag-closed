@@ -29,6 +29,27 @@ This starts:
 
 ### 2. Set Up Python Environment
 
+Using `uv` (recommended - much faster):
+
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Create virtual environment and install dependencies
+uv venv
+source .venv/bin/activate  # Linux/Mac
+# OR
+.venv\Scripts\activate  # Windows
+
+# Install all dependencies from requirements.txt
+uv pip install -r requirements.txt
+
+# Or install individual packages
+uv pip install boto3 opensearch-py fastapi
+```
+
+Alternatively, using traditional pip:
+
 ```bash
 # Create virtual environment
 python -m venv venv
