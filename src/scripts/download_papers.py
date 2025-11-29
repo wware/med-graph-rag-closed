@@ -107,7 +107,7 @@ class PubMedCentralFetcher:
             List of PMC IDs (without "PMC" prefix)
         """
         # Build the query
-        search_query = f"{query} AND free fulltext[filter]"  # Only open access papers
+        search_query = f"{query} AND open access[filter]"  # Only open access papers
         
         if start_date or end_date:
             date_range = f"{start_date or '1900'}:{end_date or '3000'}"
