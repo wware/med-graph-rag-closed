@@ -41,11 +41,8 @@ source .venv/bin/activate  # Linux/Mac
 # OR
 .venv\Scripts\activate  # Windows
 
-# Install all dependencies from requirements.txt
-uv pip install -r requirements.txt
-
-# Or install individual packages
-uv pip install boto3 opensearch-py fastapi
+# Install package with all dependencies
+uv pip install -e .
 ```
 
 Alternatively, using traditional pip:
@@ -60,8 +57,8 @@ source venv/bin/activate
 # Activate (Windows)
 venv\Scripts\activate
 
-# Install dependencies
-pip install -r requirements.txt
+# Install package with all dependencies
+pip install -e .
 ```
 
 ### 3. Download Sample Papers

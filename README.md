@@ -104,7 +104,7 @@ git clone <repository-url>
 cd med-graph-rag
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 2. **Start local services**
