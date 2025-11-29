@@ -7,6 +7,7 @@ and indexes them to Amazon OpenSearch Service for hybrid vector + keyword search
 
 import boto3
 import json
+import os
 from typing import List, Dict, Any, Optional
 from dataclasses import asdict
 import time
@@ -16,37 +17,61 @@ from .embedding_generator import EmbeddingGenerator
 
 
 class OpenSearchIndexer:
-    """Index documents with embeddings to Amazon OpenSearch"""
-    
-    def __init__(self, 
-                 host: str,
+    """Index documents with embeddings to OpenSearch (local or AWS)"""
+
+    def __init__(self,
+                 host: str = None,
+                 port: int = None,
                  region: str = 'us-east-1',
                  index_name: str = 'medical-papers',
-                 create_index: bool = True):
+                 create_index: bool = True,
+                 use_ssl: bool = None,
+                 use_aws_auth: bool = None):
         """
         Initialize OpenSearch client
-        
+
         Args:
-            host: OpenSearch domain endpoint (without https://)
-            region: AWS region
+            host: OpenSearch host (defaults to OPENSEARCH_HOST env var or 'localhost')
+            port: OpenSearch port (defaults to OPENSEARCH_PORT env var or 9200)
+            region: AWS region (only used if use_aws_auth=True)
             index_name: Name of the index to use
             create_index: Whether to create index if it doesn't exist
+            use_ssl: Whether to use SSL (auto-detected if None)
+            use_aws_auth: Whether to use AWS auth (auto-detected if None)
         """
-        # Set up AWS authentication
-        credentials = boto3.Session().get_credentials()
-        auth = AWSV4SignerAuth(credentials, region, 'es')
-        
+        # Get configuration from environment variables
+        host = host or os.getenv('OPENSEARCH_HOST', 'localhost')
+        port = port or int(os.getenv('OPENSEARCH_PORT', '9200'))
+
+        # Auto-detect local vs AWS deployment
+        is_local = host in ('localhost', '127.0.0.1', 'opensearch') or port != 443
+
+        if use_ssl is None:
+            use_ssl = not is_local
+
+        if use_aws_auth is None:
+            use_aws_auth = not is_local
+
+        # Set up authentication
+        http_auth = None
+        if use_aws_auth:
+            credentials = boto3.Session().get_credentials()
+            http_auth = AWSV4SignerAuth(credentials, region, 'es')
+
+        # Create OpenSearch client
         self.client = OpenSearch(
-            hosts=[{'host': host, 'port': 443}],
-            http_auth=auth,
-            use_ssl=True,
-            verify_certs=True,
+            hosts=[{'host': host, 'port': port}],
+            http_auth=http_auth,
+            use_ssl=use_ssl,
+            verify_certs=use_ssl,
             connection_class=RequestsHttpConnection,
             timeout=60
         )
-        
+
         self.index_name = index_name
-        
+
+        print(f"Connected to OpenSearch at {host}:{port} (SSL: {use_ssl}, AWS Auth: {use_aws_auth})")
+
         if create_index:
             self._create_index_if_not_exists()
     
@@ -286,15 +311,25 @@ class OpenSearchIndexer:
 
 class PaperIndexingPipeline:
     """Complete pipeline for embedding and indexing parsed papers"""
-    
-    def __init__(self, 
-                 opensearch_host: str,
+
+    def __init__(self,
+                 opensearch_host: str = None,
+                 opensearch_port: int = None,
                  aws_region: str = 'us-east-1',
                  index_name: str = 'medical-papers'):
-        """Initialize the pipeline"""
+        """
+        Initialize the pipeline
+
+        Args:
+            opensearch_host: OpenSearch host (defaults to OPENSEARCH_HOST env var or 'localhost')
+            opensearch_port: OpenSearch port (defaults to OPENSEARCH_PORT env var or 9200)
+            aws_region: AWS region for Bedrock and OpenSearch (if using AWS)
+            index_name: Name of the OpenSearch index
+        """
         self.embedder = EmbeddingGenerator(region_name=aws_region)
         self.indexer = OpenSearchIndexer(
             host=opensearch_host,
+            port=opensearch_port,
             region=aws_region,
             index_name=index_name
         )
@@ -395,35 +430,32 @@ class PaperIndexingPipeline:
 def example_usage():
     """Example of how to use the pipeline"""
     from .jats_parser import JATSParser
-    
-    # Configuration
-    OPENSEARCH_HOST = "your-domain.us-east-1.es.amazonaws.com"
-    AWS_REGION = "us-east-1"
-    
-    # Initialize pipeline
-    pipeline = PaperIndexingPipeline(
-        opensearch_host=OPENSEARCH_HOST,
-        aws_region=AWS_REGION
-    )
-    
+
+    # Configuration - uses environment variables by default
+    # For local: export OPENSEARCH_HOST=localhost OPENSEARCH_PORT=9200
+    # For AWS: export OPENSEARCH_HOST=your-domain.us-east-1.es.amazonaws.com
+
+    # Initialize pipeline (will auto-detect local vs AWS)
+    pipeline = PaperIndexingPipeline()
+
     # Parse and process a paper
     parser = JATSParser('path/to/paper.xml')
     paper = parser.parse()
-    
+
     result = pipeline.process_paper(paper)
     print(f"Indexed {result['success']} chunks, {result['failed']} failed")
-    
+
     # Example: Search the index
     query = "BRCA1 mutations and breast cancer risk"
     query_embedding = pipeline.embedder.embed_text(query, input_type='search_query')
-    
+
     results = pipeline.indexer.search_hybrid(
         query_text=query,
         query_embedding=query_embedding,
         filters={"section": "results"},
         k=5
     )
-    
+
     print(f"\nSearch results for: {query}")
     for i, result in enumerate(results):
         print(f"\n{i+1}. Score: {result['score']:.3f}")

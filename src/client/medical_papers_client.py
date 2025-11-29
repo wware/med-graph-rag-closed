@@ -7,6 +7,7 @@ Provides convenient methods for search, exploration, and analysis.
 
 import boto3
 import json
+import os
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass, asdict
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
@@ -48,57 +49,89 @@ Text:
 
 class MedicalPapersClient:
     """Client for querying medical papers knowledge base"""
-    
+
     def __init__(self,
-                 opensearch_host: str,
+                 opensearch_host: str = None,
+                 opensearch_port: int = None,
                  aws_region: str = 'us-east-1',
                  index_name: str = 'medical-papers',
-                 aws_profile: Optional[str] = None):
+                 aws_profile: Optional[str] = None,
+                 use_ssl: bool = None,
+                 use_aws_auth: bool = None):
         """
         Initialize client
-        
+
         Args:
-            opensearch_host: OpenSearch domain endpoint (without https://)
+            opensearch_host: OpenSearch host (defaults to OPENSEARCH_HOST env var or 'localhost')
+            opensearch_port: OpenSearch port (defaults to OPENSEARCH_PORT env var or 9200)
             aws_region: AWS region
             index_name: Name of the index
             aws_profile: AWS profile name (if using multiple profiles)
+            use_ssl: Whether to use SSL (auto-detected if None)
+            use_aws_auth: Whether to use AWS auth (auto-detected if None)
         """
-        # Set up AWS session
-        session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
-        credentials = session.get_credentials()
-        auth = AWSV4SignerAuth(credentials, aws_region, 'es')
-        
+        # Get configuration from environment variables
+        opensearch_host = opensearch_host or os.getenv('OPENSEARCH_HOST', 'localhost')
+        opensearch_port = opensearch_port or int(os.getenv('OPENSEARCH_PORT', '9200'))
+
+        # Auto-detect local vs AWS deployment
+        is_local = opensearch_host in ('localhost', '127.0.0.1', 'opensearch') or opensearch_port != 443
+
+        if use_ssl is None:
+            use_ssl = not is_local
+
+        if use_aws_auth is None:
+            use_aws_auth = not is_local
+
+        # Set up authentication
+        http_auth = None
+        if use_aws_auth:
+            session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
+            credentials = session.get_credentials()
+            http_auth = AWSV4SignerAuth(credentials, aws_region, 'es')
+
         # OpenSearch client
         self.client = OpenSearch(
-            hosts=[{'host': opensearch_host, 'port': 443}],
-            http_auth=auth,
-            use_ssl=True,
-            verify_certs=True,
+            hosts=[{'host': opensearch_host, 'port': opensearch_port}],
+            http_auth=http_auth,
+            use_ssl=use_ssl,
+            verify_certs=use_ssl,
             connection_class=RequestsHttpConnection,
             timeout=60
         )
-        
+
         self.index_name = index_name
-        
-        # Bedrock client for generating query embeddings
-        self.bedrock = session.client('bedrock-runtime', region_name=aws_region)
+
+        print(f"Connected to OpenSearch at {opensearch_host}:{opensearch_port} (SSL: {use_ssl}, AWS Auth: {use_aws_auth})")
+
+        # Bedrock client for generating query embeddings (only if using AWS)
+        self.bedrock = None
+        if use_aws_auth:
+            session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
+            self.bedrock = session.client('bedrock-runtime', region_name=aws_region)
         self.model_id = 'amazon.titan-embed-text-v2:0'
     
     def _generate_query_embedding(self, text: str) -> List[float]:
         """Generate embedding for a query"""
+        if self.bedrock is None:
+            raise RuntimeError(
+                "Bedrock client not initialized. For local development without AWS Bedrock, "
+                "use keyword-only search or provide pre-computed embeddings."
+            )
+
         request_body = {
             "inputText": text,
             "dimensions": 1024,
             "normalize": True
         }
-        
+
         response = self.bedrock.invoke_model(
             modelId=self.model_id,
             contentType='application/json',
             accept='application/json',
             body=json.dumps(request_body)
         )
-        
+
         response_body = json.loads(response['body'].read())
         return response_body['embedding']
     
@@ -508,79 +541,77 @@ class MedicalPapersClient:
 
 def example_usage():
     """Example usage from your laptop"""
-    
-    # Initialize client
-    client = MedicalPapersClient(
-        opensearch_host="your-domain.us-east-1.es.amazonaws.com",
-        aws_region="us-east-1",
-        aws_profile="default"  # or None if using default
-    )
-    
+
+    # Initialize client (auto-detects local vs AWS from environment variables)
+    # For local: export OPENSEARCH_HOST=localhost OPENSEARCH_PORT=9200
+    # For AWS: export OPENSEARCH_HOST=your-domain.us-east-1.es.amazonaws.com
+    client = MedicalPapersClient()
+
     # Example 1: Basic search
     print("=" * 60)
     print("Basic Search")
     print("=" * 60)
-    
+
     results = client.search(
         query="BRCA1 mutations and breast cancer risk",
         k=5,
         search_type='hybrid'
     )
-    
+
     for i, result in enumerate(results, 1):
         print(f"\n--- Result {i} ---")
         print(result)
-    
+
     # Example 2: Filtered search
     print("\n" + "=" * 60)
     print("Filtered Search - Results section only")
     print("=" * 60)
-    
+
     results = client.search(
         query="treatment outcomes",
         k=5,
         filters={'section': 'results'}
     )
-    
+
     for result in results:
         print(f"\n{result.title}")
         print(f"Section: {result.section}")
         print(f"Preview: {result.chunk_text[:200]}...")
-    
+
     # Example 3: Find related papers
     print("\n" + "=" * 60)
     print("Related Papers")
     print("=" * 60)
-    
+
     related = client.get_related_papers(
         pmc_id="123456",  # Replace with actual PMC ID
         k=5
     )
-    
+
     print(f"Papers similar to PMC123456:")
     for paper in related:
         print(f"- {paper.title} ({paper.journal}, {paper.publication_date})")
-    
+
     # Example 4: Aggregations
     print("\n" + "=" * 60)
     print("Top Journals for Topic")
     print("=" * 60)
-    
+
     journal_df = client.aggregate_by_journal(
         query="immunotherapy",
         top_n=10
     )
     print(journal_df)
-    
+
     # Example 5: Export results
     results = client.search(query="diabetes treatment", k=100)
     client.export_results_to_csv(results, "diabetes_papers.csv")
-    
+
     # Example 6: Corpus statistics
     print("\n" + "=" * 60)
     print("Corpus Statistics")
     print("=" * 60)
-    
+
     stats = client.get_corpus_stats()
     for key, value in stats.items():
         print(f"{key}: {value}")
