@@ -31,7 +31,7 @@ class SearchResult:
     mesh_terms: List[str]
     subsection: Optional[str] = None
     doi: Optional[str] = None
-    
+
     def __str__(self) -> str:
         """Pretty print a result"""
         return f"""
@@ -110,7 +110,7 @@ class MedicalPapersClient:
             session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
             self.bedrock = session.client('bedrock-runtime', region_name=aws_region)
         self.model_id = 'amazon.titan-embed-text-v2:0'
-    
+
     def _generate_query_embedding(self, text: str) -> List[float]:
         """Generate embedding for a query"""
         if self.bedrock is None:
@@ -134,7 +134,7 @@ class MedicalPapersClient:
 
         response_body = json.loads(response['body'].read())
         return response_body['embedding']
-    
+
     def search(self,
                query: str,
                k: int = 10,
@@ -143,20 +143,22 @@ class MedicalPapersClient:
                filters: Optional[Dict[str, Any]] = None) -> List[SearchResult]:
         """
         Search for papers
-        
+
         Args:
             query: Search query (natural language)
             k: Number of results to return
             search_type: 'hybrid', 'vector', or 'keyword'
             vector_weight: Weight for vector search (0-1), only for hybrid
             filters: Additional filters (e.g., {'section': 'results', 'year': 2023})
-            
+
         Returns:
             List of SearchResult objects
         """
-        # Generate query embedding
-        query_embedding = self._generate_query_embedding(query)
-        
+        # Generate query embedding (only if needed)
+        query_embedding = None
+        if search_type != 'keyword':
+            query_embedding = self._generate_query_embedding(query)
+
         # Build query based on search type
         if search_type == 'vector':
             search_query = self._build_vector_query(query_embedding, k)
@@ -164,14 +166,14 @@ class MedicalPapersClient:
             search_query = self._build_keyword_query(query, k)
         else:  # hybrid
             search_query = self._build_hybrid_query(query, query_embedding, k, vector_weight)
-        
+
         # Add filters
         if filters:
             search_query = self._add_filters(search_query, filters)
-        
+
         # Execute search
         response = self.client.search(index=self.index_name, body=search_query)
-        
+
         # Parse results
         results = []
         for hit in response['hits']['hits']:
@@ -192,9 +194,9 @@ class MedicalPapersClient:
                 mesh_terms=source.get('mesh_terms', [])
             )
             results.append(result)
-        
+
         return results
-    
+
     def _build_vector_query(self, embedding: List[float], k: int) -> Dict:
         """Build pure vector similarity query"""
         return {
@@ -208,7 +210,7 @@ class MedicalPapersClient:
                 }
             }
         }
-    
+
     def _build_keyword_query(self, query: str, k: int) -> Dict:
         """Build pure keyword query"""
         return {
@@ -221,8 +223,8 @@ class MedicalPapersClient:
                 }
             }
         }
-    
-    def _build_hybrid_query(self, query: str, embedding: List[float], 
+
+    def _build_hybrid_query(self, query: str, embedding: List[float],
                            k: int, vector_weight: float) -> Dict:
         """Build hybrid vector + keyword query"""
         return {
@@ -257,34 +259,34 @@ class MedicalPapersClient:
                 }
             }
         }
-    
+
     def _add_filters(self, query: Dict, filters: Dict[str, Any]) -> Dict:
         """Add filters to a query"""
         if "query" not in query:
             query["query"] = {"bool": {}}
-        
+
         if "bool" not in query["query"]:
             original_query = query["query"]
             query["query"] = {"bool": {"must": [original_query]}}
-        
+
         if "filter" not in query["query"]["bool"]:
             query["query"]["bool"]["filter"] = []
-        
+
         for field, value in filters.items():
             if isinstance(value, list):
                 query["query"]["bool"]["filter"].append({"terms": {field: value}})
             else:
                 query["query"]["bool"]["filter"].append({"term": {field: value}})
-        
+
         return query
-    
+
     def find_papers_by_id(self, pmc_ids: List[str]) -> List[Dict[str, Any]]:
         """
         Get all chunks from specific papers
-        
+
         Args:
             pmc_ids: List of PMC IDs
-            
+
         Returns:
             List of all chunks from those papers
         """
@@ -300,18 +302,18 @@ class MedicalPapersClient:
                 {"paragraph_index": "asc"}
             ]
         }
-        
+
         response = self.client.search(index=self.index_name, body=query)
         return [hit['_source'] for hit in response['hits']['hits']]
-    
+
     def get_related_papers(self, pmc_id: str, k: int = 10) -> List[SearchResult]:
         """
         Find papers similar to a given paper
-        
+
         Args:
             pmc_id: PMC ID of the reference paper
             k: Number of similar papers to return
-            
+
         Returns:
             List of similar papers
         """
@@ -327,16 +329,16 @@ class MedicalPapersClient:
                 }
             }
         }
-        
+
         response = self.client.search(index=self.index_name, body=query)
-        
+
         if not response['hits']['hits']:
             print(f"Paper {pmc_id} not found")
             return []
-        
+
         # Get the embedding of the abstract
         abstract_embedding = response['hits']['hits'][0]['_source']['embedding']
-        
+
         # Find similar papers by vector similarity
         similar_query = {
             "size": k + 10,  # Get extra to filter out the same paper
@@ -349,9 +351,9 @@ class MedicalPapersClient:
                 }
             }
         }
-        
+
         response = self.client.search(index=self.index_name, body=similar_query)
-        
+
         # Parse and filter out the original paper
         results = []
         for hit in response['hits']['hits']:
@@ -373,20 +375,20 @@ class MedicalPapersClient:
                     mesh_terms=source['mesh_terms']
                 )
                 results.append(result)
-                
+
                 if len(results) >= k:
                     break
-        
+
         return results
-    
+
     def aggregate_by_journal(self, query: str, top_n: int = 10) -> pd.DataFrame:
         """
         Search and aggregate results by journal
-        
+
         Args:
             query: Search query
             top_n: Number of top journals to return
-            
+
         Returns:
             DataFrame with journal counts
         """
@@ -407,25 +409,25 @@ class MedicalPapersClient:
                 }
             }
         }
-        
+
         response = self.client.search(index=self.index_name, body=search_query)
-        
+
         buckets = response['aggregations']['journals']['buckets']
-        
+
         df = pd.DataFrame([
             {'journal': b['key'], 'count': b['doc_count']}
             for b in buckets
         ])
-        
+
         return df
-    
+
     def aggregate_by_year(self, query: str) -> pd.DataFrame:
         """
         Search and aggregate results by publication year
-        
+
         Args:
             query: Search query
-            
+
         Returns:
             DataFrame with year counts
         """
@@ -448,26 +450,26 @@ class MedicalPapersClient:
                 }
             }
         }
-        
+
         response = self.client.search(index=self.index_name, body=search_query)
-        
+
         buckets = response['aggregations']['years']['buckets']
-        
+
         df = pd.DataFrame([
             {'year': b['key_as_string'], 'count': b['doc_count']}
             for b in buckets
         ])
-        
+
         return df
-    
+
     def get_citation_context(self, pmc_id: str, cited_pmc_id: str) -> List[str]:
         """
         Find contexts where one paper cites another
-        
+
         Args:
             pmc_id: The citing paper
             cited_pmc_id: The cited paper
-            
+
         Returns:
             List of text chunks where the citation appears
         """
@@ -484,28 +486,28 @@ class MedicalPapersClient:
                 }
             }
         }
-        
+
         response = self.client.search(index=self.index_name, body=query)
-        
+
         contexts = []
         for hit in response['hits']['hits']:
             source = hit['_source']
             contexts.append(f"[{source['section']}] {source['chunk_text']}")
-        
+
         return contexts
-    
+
     def export_results_to_csv(self, results: List[SearchResult], filename: str):
         """Export search results to CSV for further analysis"""
         df = pd.DataFrame([asdict(r) for r in results])
         df.to_csv(filename, index=False)
         print(f"Exported {len(results)} results to {filename}")
-    
+
     def get_corpus_stats(self) -> Dict[str, Any]:
         """Get statistics about the indexed corpus"""
         # Total documents
         count_query = {"query": {"match_all": {}}}
         total_docs = self.client.count(index=self.index_name, body=count_query)['count']
-        
+
         # Unique papers
         unique_papers_query = {
             "size": 0,
@@ -519,7 +521,7 @@ class MedicalPapersClient:
         }
         response = self.client.search(index=self.index_name, body=unique_papers_query)
         unique_papers = response['aggregations']['unique_papers']['value']
-        
+
         # Date range
         date_range_query = {
             "size": 0,
@@ -529,7 +531,7 @@ class MedicalPapersClient:
             }
         }
         response = self.client.search(index=self.index_name, body=date_range_query)
-        
+
         return {
             "total_chunks": total_docs,
             "unique_papers": unique_papers,

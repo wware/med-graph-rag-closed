@@ -11,6 +11,7 @@ import os
 from typing import List, Dict, Any, Optional
 from dataclasses import asdict
 import time
+from pathlib import Path
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
 from .jats_parser import ParsedPaper, Chunk
 from .embedding_generator import EmbeddingGenerator
@@ -74,13 +75,13 @@ class OpenSearchIndexer:
 
         if create_index:
             self._create_index_if_not_exists()
-    
+
     def _create_index_if_not_exists(self):
         """Create the index with appropriate mappings if it doesn't exist"""
         if self.client.indices.exists(index=self.index_name):
             print(f"Index '{self.index_name}' already exists")
             return
-        
+
         # Index mapping with vector field for k-NN search
         index_body = {
             "settings": {
@@ -107,7 +108,7 @@ class OpenSearchIndexer:
                             }
                         }
                     },
-                    
+
                     # Text fields for keyword search
                     "chunk_text": {
                         "type": "text",
@@ -120,7 +121,7 @@ class OpenSearchIndexer:
                             "keyword": {"type": "keyword"}
                         }
                     },
-                    
+
                     # Metadata fields
                     "paper_id": {"type": "keyword"},
                     "pmc_id": {"type": "keyword"},
@@ -130,12 +131,12 @@ class OpenSearchIndexer:
                     "subsection": {"type": "keyword"},
                     "chunk_type": {"type": "keyword"},
                     "paragraph_index": {"type": "integer"},
-                    
+
                     # Author and journal
                     "authors": {"type": "text"},
                     "journal": {"type": "keyword"},
                     "publication_date": {"type": "date"},
-                    
+
                     # Medical terms
                     "mesh_terms": {"type": "keyword"},
                     "keywords": {"type": "keyword"},
@@ -147,27 +148,27 @@ class OpenSearchIndexer:
                             "umls_id": {"type": "keyword"}
                         }
                     },
-                    
+
                     # Citations
                     "citations": {"type": "keyword"},
-                    
+
                     # Full abstract for context
                     "abstract": {"type": "text"}
                 }
             }
         }
-        
+
         self.client.indices.create(index=self.index_name, body=index_body)
         print(f"Created index '{self.index_name}'")
-    
+
     def index_document(self, doc_id: str, document: Dict[str, Any]) -> bool:
         """
         Index a single document
-        
+
         Args:
             doc_id: Unique document ID
             document: Document to index (must include 'embedding' field)
-            
+
         Returns:
             True if successful
         """
@@ -182,24 +183,24 @@ class OpenSearchIndexer:
         except Exception as e:
             print(f"Error indexing document {doc_id}: {e}")
             return False
-    
-    def bulk_index(self, documents: List[Dict[str, Any]], 
+
+    def bulk_index(self, documents: List[Dict[str, Any]],
                    chunk_size: int = 500) -> Dict[str, int]:
         """
         Bulk index multiple documents
-        
+
         Args:
             documents: List of dicts with 'id' and 'document' keys
             chunk_size: Number of docs to index at once
-            
+
         Returns:
             Dict with 'success' and 'failed' counts
         """
         from opensearchpy import helpers
-        
+
         success = 0
         failed = 0
-        
+
         # Prepare bulk actions
         actions = []
         for doc in documents:
@@ -209,26 +210,26 @@ class OpenSearchIndexer:
                 "_source": doc['document']
             }
             actions.append(action)
-        
+
         # Bulk index in chunks
         for i in range(0, len(actions), chunk_size):
             chunk = actions[i:i + chunk_size]
-            
+
             try:
                 response = helpers.bulk(self.client, chunk, raise_on_error=False)
                 success += response[0]
                 if response[1]:  # Errors
                     failed += len(response[1])
-                    
+
                 print(f"Indexed {i + len(chunk)}/{len(actions)} documents")
-                
+
             except Exception as e:
                 print(f"Error in bulk indexing: {e}")
                 failed += len(chunk)
-        
+
         return {"success": success, "failed": failed}
-    
-    def search_hybrid(self, 
+
+    def search_hybrid(self,
                      query_text: str,
                      query_embedding: List[float],
                      filters: Optional[Dict[str, Any]] = None,
@@ -236,14 +237,14 @@ class OpenSearchIndexer:
                      vector_weight: float = 0.5) -> List[Dict[str, Any]]:
         """
         Perform hybrid search combining vector similarity and keyword matching
-        
+
         Args:
             query_text: Text query for keyword search
             query_embedding: Vector for k-NN search
             filters: Additional filters (e.g., {"section": "results"})
             k: Number of results to return
             vector_weight: Weight for vector search (0-1), keyword gets (1 - vector_weight)
-            
+
         Returns:
             List of search results with scores
         """
@@ -282,17 +283,17 @@ class OpenSearchIndexer:
                 }
             }
         }
-        
+
         # Add filters if provided
         if filters:
             query["query"]["bool"]["filter"] = []
             for field, value in filters.items():
                 query["query"]["bool"]["filter"].append({"term": {field: value}})
-        
+
         # Execute search
         try:
             response = self.client.search(index=self.index_name, body=query)
-            
+
             results = []
             for hit in response['hits']['hits']:
                 result = {
@@ -301,9 +302,9 @@ class OpenSearchIndexer:
                     'source': hit['_source']
                 }
                 results.append(result)
-            
+
             return results
-            
+
         except Exception as e:
             print(f"Error searching: {e}")
             return []
@@ -333,33 +334,33 @@ class PaperIndexingPipeline:
             region=aws_region,
             index_name=index_name
         )
-    
+
     def process_paper(self, paper: ParsedPaper) -> Dict[str, int]:
         """
         Process a single paper: generate embeddings and index all chunks
-        
+
         Args:
             paper: ParsedPaper object from JATS parser
-            
+
         Returns:
             Dict with success/failure counts
         """
         documents_to_index = []
-        
+
         # Generate embeddings for all chunks
         chunk_texts = [chunk.text for chunk in paper.chunks]
         print(f"Generating {len(chunk_texts)} embeddings for paper {paper.metadata.pmc_id}")
-        
+
         embeddings = self.embedder.embed_batch(chunk_texts)
-        
+
         # Prepare documents for indexing
         for chunk, embedding in zip(paper.chunks, embeddings):
             doc_id = f"{paper.metadata.pmc_id}_{chunk.section}_{chunk.paragraph_index}"
-            
+
             document = {
                 # Embedding
                 "embedding": embedding,
-                
+
                 # Chunk content
                 "chunk_text": chunk.text,
                 "chunk_type": chunk.chunk_type,
@@ -367,7 +368,7 @@ class PaperIndexingPipeline:
                 "subsection": chunk.subsection,
                 "paragraph_index": chunk.paragraph_index,
                 "citations": chunk.citations,
-                
+
                 # Paper metadata
                 "paper_id": paper.metadata.pmc_id,
                 "pmc_id": paper.metadata.pmc_id,
@@ -380,38 +381,38 @@ class PaperIndexingPipeline:
                 "publication_date": paper.metadata.publication_date,
                 "mesh_terms": paper.metadata.mesh_terms,
                 "keywords": paper.metadata.keywords,
-                
+
                 # Placeholder for entities (to be filled by Comprehend Medical)
                 "entities": []
             }
-            
+
             documents_to_index.append({
                 'id': doc_id,
                 'document': document
             })
-        
+
         # Bulk index
         print(f"Indexing {len(documents_to_index)} chunks to OpenSearch")
         result = self.indexer.bulk_index(documents_to_index)
-        
+
         return result
-    
+
     def process_papers_batch(self, papers: List[ParsedPaper]) -> Dict[str, int]:
         """
         Process multiple papers
-        
+
         Args:
             papers: List of ParsedPaper objects
-            
+
         Returns:
             Dict with total success/failure counts
         """
         total_success = 0
         total_failed = 0
-        
+
         for i, paper in enumerate(papers):
             print(f"\nProcessing paper {i+1}/{len(papers)}: {paper.metadata.pmc_id}")
-            
+
             try:
                 result = self.process_paper(paper)
                 total_success += result['success']
@@ -419,7 +420,7 @@ class PaperIndexingPipeline:
             except Exception as e:
                 print(f"Error processing paper {paper.metadata.pmc_id}: {e}")
                 total_failed += len(paper.chunks)
-        
+
         return {
             "success": total_success,
             "failed": total_failed,
@@ -427,42 +428,94 @@ class PaperIndexingPipeline:
         }
 
 
-def example_usage():
-    """Example of how to use the pipeline"""
+def main():
+    """Main CLI interface"""
+    import argparse
+    import glob
+    import os
     from .jats_parser import JATSParser
 
-    # Configuration - uses environment variables by default
-    # For local: export OPENSEARCH_HOST=localhost OPENSEARCH_PORT=9200
-    # For AWS: export OPENSEARCH_HOST=your-domain.us-east-1.es.amazonaws.com
-
-    # Initialize pipeline (will auto-detect local vs AWS)
-    pipeline = PaperIndexingPipeline()
-
-    # Parse and process a paper
-    parser = JATSParser('path/to/paper.xml')
-    paper = parser.parse()
-
-    result = pipeline.process_paper(paper)
-    print(f"Indexed {result['success']} chunks, {result['failed']} failed")
-
-    # Example: Search the index
-    query = "BRCA1 mutations and breast cancer risk"
-    query_embedding = pipeline.embedder.embed_text(query, input_type='search_query')
-
-    results = pipeline.indexer.search_hybrid(
-        query_text=query,
-        query_embedding=query_embedding,
-        filters={"section": "results"},
-        k=5
+    parser = argparse.ArgumentParser(
+        description='Ingest and index medical papers from JATS XML files'
     )
 
-    print(f"\nSearch results for: {query}")
-    for i, result in enumerate(results):
-        print(f"\n{i+1}. Score: {result['score']:.3f}")
-        print(f"   Paper: {result['source']['title']}")
-        print(f"   Section: {result['source']['section']}")
-        print(f"   Text: {result['source']['chunk_text'][:200]}...")
+    parser.add_argument(
+        '--input-dir',
+        required=True,
+        help='Input directory or glob pattern for XML files (e.g., "papers/*.xml")'
+    )
+    parser.add_argument(
+        '--batch-size',
+        type=int,
+        default=10,
+        help='Batch size for indexing (default: 10)'
+    )
+    parser.add_argument(
+        '--opensearch-host',
+        default=os.environ.get('OPENSEARCH_HOST'),
+        help='OpenSearch host (default: from env or localhost)'
+    )
+    parser.add_argument(
+        '--opensearch-port',
+        type=int,
+        default=int(os.environ.get('OPENSEARCH_PORT', '9200')),
+        help='OpenSearch port (default: from env or 9200)'
+    )
+    parser.add_argument(
+        '--region',
+        default='us-east-1',
+        help='AWS region (default: us-east-1)'
+    )
+
+    args = parser.parse_args()
+
+    # Handle glob patterns
+    if '*' in args.input_dir:
+        files = glob.glob(args.input_dir)
+    else:
+        input_path = Path(args.input_dir)
+        if input_path.is_dir():
+            files = list(input_path.glob('*.xml'))
+        else:
+            files = [str(input_path)]
+
+    if not files:
+        print(f"No files found matching: {args.input_dir}")
+        return
+
+    print(f"Found {len(files)} files to process")
+
+    # Initialize pipeline
+    pipeline = PaperIndexingPipeline(
+        opensearch_host=args.opensearch_host,
+        opensearch_port=args.opensearch_port,
+        aws_region=args.region
+    )
+
+    # Process papers
+    success_count = 0
+    failed_count = 0
+
+    for i, file_path in enumerate(files):
+        print(f"\nProcessing file {i+1}/{len(files)}: {file_path}")
+        try:
+            parser = JATSParser(str(file_path))
+            paper = parser.parse()
+
+            result = pipeline.process_paper(paper)
+            success_count += result['success']
+            failed_count += result['failed']
+
+        except Exception as e:
+            print(f"Failed to process {file_path}: {e}")
+            failed_count += 1
+
+    print(f"\n{'='*60}")
+    print(f"Ingestion complete!")
+    print(f"{'='*60}")
+    print(f"Chunks indexed: {success_count}")
+    print(f"Chunks failed: {failed_count}")
 
 
 if __name__ == '__main__':
-    example_usage()
+    main()

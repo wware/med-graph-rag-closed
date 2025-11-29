@@ -37,7 +37,7 @@ class MedicalKgBudgetStack(Stack):
         # ================================================================
         # VPC Configuration
         # ================================================================
-        
+
         # Create VPC with minimal infrastructure
         # Using public subnets to avoid NAT Gateway costs
         self.vpc = ec2.Vpc(
@@ -202,7 +202,9 @@ class MedicalKgBudgetStack(Stack):
         dependencies_layer = lambda_.LayerVersion(
             self,
             "DependenciesLayer",
-            code=lambda_.Code.from_asset("lambda_layer.zip"),  # You'll need to create this
+            code=lambda_.Code.from_asset(
+                "lambda_layer.zip"
+            ),  # You'll need to create this
             compatible_runtimes=[lambda_.Runtime.PYTHON_3_12],
             description="Python dependencies for medical-kg functions",
         )
