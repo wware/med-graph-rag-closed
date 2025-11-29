@@ -394,7 +394,7 @@ class PaperIndexingPipeline:
 
 def example_usage():
     """Example of how to use the pipeline"""
-    from jats_parser import JATSParser
+    from .jats_parser import JATSParser
     
     # Configuration
     OPENSEARCH_HOST = "your-domain.us-east-1.es.amazonaws.com"
