@@ -1,412 +1,351 @@
 # AWS Components Bill of Materials (BOM)
-## Medical Knowledge Graph POC
+## Medical Graph RAG - MCP Server Backend
 
-## Core Services
+**Architecture:** MCP server (runs locally or on user's machine) + AWS backend for data processing
+
+**What's deployed to AWS:**
+- Data ingestion pipeline (JATS parser, embeddings, indexing)
+- OpenSearch cluster (vector + keyword search)
+- S3 storage (raw papers, processed data)
+
+**What runs locally:**
+- MCP server (stdio transport to AI assistants)
+- User's Claude Desktop or other MCP-compatible client
+
+## Core Services (Minimal Deployment)
 
 ### 1. Amazon OpenSearch Service
 **Purpose**: Vector search + metadata storage for paper chunks
 
-**Configuration**:
-- Instance Type: `t3.medium.search` (development) → `r6g.large.search` (production)
-- Number of Instances: 2 (for HA)
-- Storage: 100 GB EBS (gp3) per instance
+**POC Configuration** (~$30-50/month):
+- Instance Type: `t3.small.search` (single node for POC)
+- Number of Instances: 1 (no HA for POC)
+- Storage: 50 GB EBS (gp3)
 - Enable: k-NN plugin for vector search
 - VPC: Deploy in private subnet
 
-**Estimated Cost**: ~$150-200/month (dev), ~$400-500/month (prod)
+**Production Configuration** (~$150-200/month):
+- Instance Type: `t3.medium.search`
+- Number of Instances: 2 (for HA)
+- Storage: 100 GB EBS (gp3) per instance
 
 **IAM Requirements**:
-- IAM role for Lambda/ECS to access OpenSearch
+- IAM role for Lambda to access OpenSearch
 - Fine-grained access control enabled
 
 ### 2. AWS Bedrock
-**Purpose**: 
-- Titan Embeddings V2 for generating embeddings
-- Claude 3.5 Sonnet for query generation from natural language
+**Purpose**: Embeddings only (Titan Embeddings V2)
 
 **Configuration**:
-- Model Access: Enable Titan Embeddings V2, Claude 3.5 Sonnet
+- Model Access: Enable Titan Embeddings V2
 - No infrastructure to provision (serverless)
+- ~$0.0001 per 1K tokens
 
 **Estimated Cost**:
-- Titan Embeddings: ~$0.0001 per 1K tokens (~$1-5 per 10K papers)
-- Claude API: ~$3 per million input tokens, $15 per million output tokens
+- 100 papers: ~$0.50
+- 1,000 papers: ~$5
+- 10,000 papers: ~$50
+- **Ongoing**: Minimal (only when adding new papers)
 
 **IAM Requirements**:
 - IAM policy to invoke Bedrock models
 
 ### 3. Amazon S3
-**Purpose**: Storage for raw papers, processed data, artifacts
+**Purpose**: Storage for raw papers, processed data
 
 **Buckets**:
 ```
 medical-kg-papers/
   ├── raw/             # Downloaded JATS XML files
   ├── processed/       # Parsed/extracted data
-  └── artifacts/       # Logs, temp files, exports
-
-medical-kg-code/
-  ├── docker-images/   # Docker build contexts
-  └── deployment/      # CDK artifacts, configs
+  └── logs/            # Ingestion logs
 ```
 
 **Configuration**:
-- Versioning: Enabled on papers bucket
+- Versioning: Enabled
 - Lifecycle: Move to Glacier after 90 days
-- Encryption: SSE-S3 (or SSE-KMS for compliance)
+- Encryption: SSE-S3
 
-**Estimated Cost**: ~$5-20/month (depends on corpus size)
+**Estimated Cost**:
+- 1,000 papers: ~$1/month
+- 10,000 papers: ~$5/month
+- 100,000 papers: ~$20/month
 
-### 4. Amazon Neptune (Graph Database)
-**Purpose**: Knowledge graph storage (diseases, genes, drugs, relationships)
-
-**Configuration**:
-- Instance Type: `db.t3.medium` (dev) → `db.r6g.large` (prod)
-- Storage: Auto-scaling from 10 GB
-- Engine: Neptune 1.3+ (supports both Gremlin and SPARQL)
-- Backup: Automated daily backups, 7-day retention
-
-**Estimated Cost**: ~$200-300/month (dev), ~$600-800/month (prod)
-
-**IAM Requirements**:
-- IAM database authentication
-- VPC security groups
-
-### 5. AWS Lambda
-**Purpose**: Serverless processing functions
+### 4. AWS Lambda
+**Purpose**: Serverless ingestion pipeline
 
 **Functions**:
+
 1. **Paper Ingestion Trigger** (S3 → Lambda)
    - Triggered when new XML uploaded to S3
-   - Parses JATS XML
+   - Parses JATS XML, generates embeddings, indexes to OpenSearch
    - Runtime: Python 3.12
    - Memory: 2048 MB
-   - Timeout: 15 minutes (max)
-   
-2. **Embedding Generator**
-   - Generates embeddings via Bedrock
-   - Runtime: Python 3.12
-   - Memory: 1024 MB
-   - Timeout: 5 minutes
-   
-3. **Entity Extractor**
-   - Extracts medical entities
-   - Runtime: Python 3.12
-   - Memory: 2048 MB
-   - Timeout: 10 minutes
+   - Timeout: 15 minutes
 
-**Estimated Cost**: ~$5-20/month (pay per invocation)
+2. **Batch Processor** (scheduled or manual)
+   - Processes multiple papers in batch
+   - Runtime: Python 3.12
+   - Memory: 3008 MB
+   - Timeout: 15 minutes
+
+**Estimated Cost**: ~$2-5/month (mostly idle, pay per invocation)
 
 **IAM Requirements**:
-- Lambda execution role with access to S3, OpenSearch, Bedrock, Neptune
+- Lambda execution role with access to S3, OpenSearch, Bedrock
 
-### 6. Amazon ECS (Elastic Container Service)
-**Purpose**: Long-running ingestion pipeline, API server
-
-**Configuration**:
-- Launch Type: Fargate (serverless containers)
-- Tasks:
-  1. **Bulk Ingestion Pipeline**: Processes batches of papers
-  2. **Query API Server**: FastAPI service for queries
-  
-**Task Definitions**:
-```
-ingestion-pipeline:
-  - CPU: 2 vCPU
-  - Memory: 4 GB
-  - Image: medical-kg-ingestion:latest
-
-query-api:
-  - CPU: 1 vCPU
-  - Memory: 2 GB
-  - Image: medical-kg-api:latest
-  - Port: 8000
-```
-
-**Estimated Cost**: ~$50-100/month (based on runtime)
-
-### 7. Amazon ECR (Elastic Container Registry)
-**Purpose**: Store Docker images
-
-**Repositories**:
-- `medical-kg-ingestion`
-- `medical-kg-api`
-- `medical-kg-query-generator`
-
-**Configuration**:
-- Image scanning: Enabled
-- Lifecycle policy: Keep last 10 images
-
-**Estimated Cost**: ~$1-5/month (storage + data transfer)
-
-### 8. Application Load Balancer (ALB)
-**Purpose**: Load balance API requests to ECS tasks
-
-**Configuration**:
-- Type: Application Load Balancer
-- Scheme: Internal (for POC) or Internet-facing (for demo)
-- Target: ECS service (query-api)
-- Health checks: /health endpoint
-
-**Estimated Cost**: ~$20-25/month
-
-### 9. Amazon CloudWatch
-**Purpose**: Logs, metrics, monitoring, alarms
+### 5. Amazon CloudWatch
+**Purpose**: Logs, metrics, basic monitoring
 
 **Configuration**:
 - Log Groups:
   - `/aws/lambda/paper-ingestion`
-  - `/aws/lambda/embedding-generator`
-  - `/aws/ecs/ingestion-pipeline`
-  - `/aws/ecs/query-api`
-- Retention: 7 days (dev), 30 days (prod)
-- Alarms:
+  - `/aws/lambda/batch-processor`
+- Retention: 7 days (POC), 14 days (production)
+- Basic alarms:
   - OpenSearch disk space > 80%
-  - Lambda errors > 10/hour
-  - Neptune CPU > 80%
+  - Lambda errors > 5/hour
 
-**Estimated Cost**: ~$10-20/month
+**Estimated Cost**: ~$2-5/month
 
-### 10. AWS Secrets Manager
-**Purpose**: Store sensitive configuration
+### 6. AWS Secrets Manager
+**Purpose**: Store OpenSearch credentials
 
 **Secrets**:
 - OpenSearch admin credentials
-- Neptune connection strings
-- API keys (if needed)
-- GitHub tokens for Actions
+- (Optional) API keys for PubMed access
 
-**Estimated Cost**: ~$1-2/month ($0.40 per secret)
+**Estimated Cost**: ~$1/month ($0.40 per secret)
 
-### 11. Amazon VPC
-**Purpose**: Network isolation and security
+### 7. Amazon VPC
+**Purpose**: Network isolation for OpenSearch
 
 **Configuration**:
 ```
 VPC: 10.0.0.0/16
-  ├── Public Subnets: 10.0.1.0/24, 10.0.2.0/24
-  │   └── NAT Gateways, ALB
   └── Private Subnets: 10.0.10.0/24, 10.0.11.0/24
-      └── OpenSearch, Neptune, ECS Tasks, Lambda
+      └── OpenSearch, Lambda (in VPC)
 ```
 
 **Components**:
-- 2 Availability Zones
-- NAT Gateway in each AZ (for Lambda/ECS internet access)
-- VPC Endpoints for S3, Bedrock (reduce costs)
-- Security Groups for each service
+- 2 Availability Zones (for production)
+- VPC Endpoints for S3, Bedrock (no NAT Gateway needed)
+- Security Groups for OpenSearch, Lambda
 
-**Estimated Cost**: ~$60-100/month (mostly NAT Gateways)
+**Estimated Cost**: ~$15/month (VPC endpoints)
 
-### 12. AWS Systems Manager (Parameter Store)
-**Purpose**: Store non-sensitive configuration
+## Deferred Services (Cost Savings)
 
-**Parameters**:
-- OpenSearch endpoint
-- Neptune endpoint
-- S3 bucket names
-- Model IDs
-- Feature flags
+### ❌ Amazon Neptune - NOT DEPLOYED (Saves $200-300/month)
+**Why deferred**:
+- Graph relationships stored in OpenSearch for now
+- Simple graph traversal via application logic
+- Can migrate to Neptune later if complex graph queries needed
 
-**Estimated Cost**: Free (standard parameters)
+### ❌ Application Load Balancer - NOT NEEDED (Saves $20-25/month)
+**Why not needed**:
+- MCP server runs locally (stdio transport)
+- No web API to load balance
 
-## Optional Services (Future Enhancement)
+### ❌ Amazon ECS/Fargate - MINIMAL USE (Saves $50-100/month)
+**Why minimal**:
+- Ingestion via Lambda (serverless)
+- No API server needed (MCP runs locally)
+- Optional: ECS task for bulk ingestion only
 
-### 13. Amazon Comprehend Medical
-**Purpose**: Medical entity extraction (alternative to SciSpacy)
-
-**Configuration**:
-- On-demand API calls
-- No infrastructure needed
-
-**Estimated Cost**: $0.01 per 100 characters (~$10-20 per 10K papers)
-
-### 14. Amazon SageMaker
-**Purpose**: Host custom medical NER models if needed
-
-**Configuration**:
-- Instance Type: ml.m5.xlarge
-- Only if custom models needed
-
-**Estimated Cost**: ~$200+/month (if used)
-
-### 15. Amazon EventBridge
-**Purpose**: Orchestrate complex workflows, scheduled tasks
-
-**Use Cases**:
-- Schedule periodic paper fetching
-- Trigger reindexing workflows
-- Coordinate multi-step processing
-
-**Estimated Cost**: <$1/month
-
-### 16. AWS Step Functions
-**Purpose**: Orchestrate complex ingestion workflows
-
-**Use Cases**:
-- Multi-step paper processing
-- Error handling and retries
-- State management
-
-**Estimated Cost**: $25 per million state transitions (~$1-5/month for POC)
-
-## Development Tools
-
-### 17. AWS Cloud9 (Optional)
-**Purpose**: Cloud-based IDE for development
-
-**Configuration**:
-- Instance Type: t3.small
-- Stop after 30 minutes idle
-
-**Estimated Cost**: ~$20-30/month (if used)
-
-### 18. AWS CodeBuild
-**Purpose**: Build Docker images in CI/CD pipeline
-
-**Configuration**:
-- Build compute: 4 GB, 2 vCPU
-- Triggered by GitHub Actions or CodePipeline
-
-**Estimated Cost**: $0.005 per build minute (~$5-10/month)
+### ❌ NAT Gateway - NOT NEEDED (Saves $45-90/month)
+**Why not needed**:
+- VPC endpoints for S3, Bedrock
+- Lambda functions don't need internet access
 
 ## Total Estimated Monthly Costs
 
-### Development/POC Environment
-- OpenSearch: $150
-- Neptune: $200
-- S3: $10
-- Lambda: $10
-- ECS/Fargate: $30
-- ECR: $2
-- ALB: $20
-- VPC/NAT: $60
-- CloudWatch: $10
-- Secrets Manager: $2
-- Bedrock: $5-20 (usage-based)
-- **Total: ~$500-550/month**
+### POC Environment (Single Node, Minimal Features)
+- OpenSearch (t3.small): $30
+- S3 (1K papers): $2
+- Lambda (light use): $2
+- CloudWatch: $2
+- Secrets Manager: $1
+- VPC Endpoints: $15
+- Bedrock (one-time ingestion): $5
+- **Total POC: ~$50-60/month**
 
-### Production Environment
-- OpenSearch: $400
-- Neptune: $600
-- S3: $20
-- Lambda: $20
-- ECS/Fargate: $100
-- ECR: $5
-- ALB: $25
-- VPC/NAT: $100
-- CloudWatch: $20
-- Secrets Manager: $5
-- Bedrock: $20-100 (usage-based)
-- **Total: ~$1,315-1,500/month**
+### Production Environment (HA, 10K Papers)
+- OpenSearch (t3.medium x2): $150
+- S3 (10K papers): $5
+- Lambda (moderate use): $5
+- CloudWatch: $5
+- Secrets Manager: $1
+- VPC Endpoints: $15
+- Bedrock (ongoing ingestion): $10/month avg
+- **Total Production: ~$190-200/month**
+
+### Deferred Costs (Not Paying Now)
+- Neptune: $200-300/month (using OpenSearch instead)
+- ALB: $20-25/month (no web API)
+- NAT Gateway: $45-90/month (using VPC endpoints)
+- ECS: $50-100/month (using Lambda instead)
+- **Savings: ~$315-515/month**
+
+## Cost Comparison by Corpus Size
+
+| Papers | OpenSearch | S3 | Bedrock (one-time) | Monthly Total |
+|--------|------------|----|--------------------|---------------|
+| 100 | $30 | $1 | $0.50 | ~$50 |
+| 1,000 | $30 | $2 | $5 | ~$55 |
+| 10,000 | $150 | $5 | $50 (one-time) | ~$175 |
+| 100,000 | $400 | $20 | $500 (one-time) | ~$450 |
+
+**Note:** Bedrock costs are one-time for initial ingestion, then minimal for new papers.
+
+## Development vs Production Architecture
+
+### Development/POC (Local First)
+```
+Developer's Laptop:
+  ├── MCP Server (local Python process)
+  ├── Claude Desktop (calls MCP server)
+  └── Docker (local OpenSearch for testing)
+
+AWS (Optional):
+  └── [Nothing deployed - test locally first]
+
+Monthly Cost: $0 (just local Bedrock API calls ~$2)
+```
+
+### POC Deployment (Validate with Users)
+```
+User's Laptop:
+  ├── MCP Server (via uvx pubmed-graph-rag)
+  └── Claude Desktop
+
+AWS Backend:
+  ├── OpenSearch (t3.small, single node)
+  ├── Lambda (ingestion)
+  ├── S3 (papers storage)
+  └── Bedrock (embeddings)
+
+Monthly Cost: ~$50-60
+```
+
+### Production (Scaled to 10K+ Papers)
+```
+User's Laptop:
+  ├── MCP Server (via uvx pubmed-graph-rag)
+  └── Claude Desktop
+
+AWS Backend:
+  ├── OpenSearch (t3.medium x2, HA)
+  ├── Lambda (ingestion)
+  ├── S3 (papers storage)
+  └── Bedrock (embeddings)
+
+Monthly Cost: ~$190-200
+```
 
 ## Cost Optimization Tips
 
-1. **Use VPC Endpoints**: Save on NAT Gateway costs for S3/Bedrock
-2. **Reserved Instances**: For OpenSearch/Neptune (40% savings)
-3. **Fargate Spot**: For non-critical batch jobs (70% savings)
-4. **S3 Intelligent Tiering**: Automatic cost optimization
-5. **Lambda SnapStart**: Reduce cold starts and costs
-6. **Stop dev resources**: Automate shutdown outside business hours
-7. **Use AWS Free Tier**: 12 months free for many services
+1. **Start Local**: Develop with local Docker OpenSearch ($0/month)
+2. **Use VPC Endpoints**: Save $45-90/month on NAT Gateway
+3. **Single Node POC**: Start with t3.small single node ($30 vs $150)
+4. **Defer Neptune**: Use OpenSearch for simple graph queries (save $200/month)
+5. **Lambda over ECS**: Serverless ingestion (save $50-100/month)
+6. **S3 Lifecycle**: Move old papers to Glacier (save ~50% storage)
+7. **Reserved Instances**: For OpenSearch if running 1+ year (40% savings)
 
 ## IAM Roles Summary
 
-### 1. Lambda Execution Role
+### Lambda Execution Role
 ```
 Permissions:
-- S3: GetObject, PutObject
+- S3: GetObject, PutObject (papers bucket)
 - OpenSearch: ESHttpPost, ESHttpPut
-- Bedrock: InvokeModel
-- Neptune: connect
+- Bedrock: InvokeModel (Titan Embeddings only)
 - CloudWatch: CreateLogGroup, PutLogEvents
 - Secrets Manager: GetSecretValue
 ```
 
-### 2. ECS Task Role
-```
-Permissions:
-- Same as Lambda + ECR pull
-```
-
-### 3. GitHub Actions Role (OIDC)
-```
-Permissions:
-- ECR: Push images
-- ECS: UpdateService, RegisterTaskDefinition
-- S3: Deploy CDK artifacts
-- CloudFormation: Create/Update stacks
-```
-
-### 4. Developer Role
+### Developer Role
 ```
 Permissions:
 - Full access to all POC resources
 - CDK deploy permissions
 - CloudFormation management
+- OpenSearch access for debugging
 ```
 
-## Networking Details
-
-### Security Groups
+## Security Groups
 
 **OpenSearch SG**:
-- Inbound: 443 from Lambda SG, ECS SG
-- Outbound: All
+- Inbound: 443 from Lambda SG only
+- Outbound: All (for cluster communication)
 
-**Neptune SG**:
-- Inbound: 8182 (Gremlin) from Lambda SG, ECS SG
-- Outbound: All
+**Lambda SG** (if in VPC):
+- Inbound: None needed
+- Outbound: All (to OpenSearch, Bedrock via VPC endpoint)
 
-**ECS Task SG**:
-- Inbound: 8000 from ALB SG
-- Outbound: All
-
-**ALB SG**:
-- Inbound: 443 from 0.0.0.0/0 (or restricted IPs)
-- Outbound: All to ECS Task SG
-
-### VPC Endpoints (Cost Savings)
+## VPC Endpoints (Critical for Cost Savings)
 
 **Gateway Endpoints** (Free):
-- S3
-- DynamoDB (if used)
+- S3 (avoids NAT Gateway)
 
 **Interface Endpoints** ($7.50/month each):
-- Bedrock (recommended)
-- Secrets Manager (recommended)
-- ECR (recommended for ECS)
+- Bedrock ($7.50/month) - **Recommended**: Saves $45/month in NAT costs
+- Secrets Manager ($7.50/month) - **Optional**: Only if using secrets
 
-## Tags for Resource Management
-
-All resources should be tagged:
-```
-Project: medical-knowledge-graph
-Environment: dev|prod
-ManagedBy: cdk
-Owner: your-email@example.com
-CostCenter: research
-```
+**Total VPC Endpoint Cost**: ~$15/month (saves $45-90/month in NAT)
 
 ## Backup and Disaster Recovery
 
-1. **OpenSearch**: Automated snapshots to S3 daily
-2. **Neptune**: Automated backups, 7-day retention
-3. **S3**: Versioning enabled
-4. **Infrastructure**: CDK templates in Git
+1. **OpenSearch**: Manual snapshots to S3 (weekly for POC)
+2. **S3**: Versioning enabled (automatic)
+3. **Infrastructure**: CDK templates in Git
 
-**RTO**: 4 hours (time to restore)
-**RPO**: 24 hours (acceptable data loss)
+**RTO**: 8 hours (time to restore from scratch)
+**RPO**: 7 days (acceptable data loss for POC)
+
+## Deployment Phases
+
+### Phase 1: Local Development ($0/month)
+- Docker Compose OpenSearch
+- Local testing with 100 papers
+- MCP server development
+- **Duration**: 2-4 weeks
+
+### Phase 2: POC Deployment ($50/month)
+- Deploy single-node OpenSearch to AWS
+- Lambda ingestion pipeline
+- 1,000 papers corpus
+- **Duration**: 4-8 weeks validation
+
+### Phase 3: Production ($190-200/month)
+- HA OpenSearch (2 nodes)
+- 10,000+ papers corpus
+- Monitoring and alarms
+- **Duration**: When validated and funded
+
+## Tags for Resource Management
+
+All resources tagged:
+```
+Project: med-graph-rag
+Environment: poc|prod
+ManagedBy: cdk
+Purpose: mcp-backend
+CostCenter: validation
+```
 
 ## Next Steps
 
-1. Set up AWS account structure
-2. Deploy network infrastructure (VPC) via CDK
-3. Deploy OpenSearch cluster
-4. Deploy Neptune cluster
-5. Set up ECR repositories
-6. Build and push Docker images
-7. Deploy Lambda functions
-8. Deploy ECS services
-9. Set up monitoring and alarms
-10. Configure CI/CD pipeline
+**POC Deployment**:
+1. ✅ Develop and test locally (weeks 1-2)
+2. ✅ Deploy VPC + OpenSearch (week 3)
+3. ✅ Deploy Lambda ingestion (week 3)
+4. ✅ Ingest 1,000 papers (week 4)
+5. ✅ Test with 10 beta doctors (weeks 5-8)
+
+**Production (if POC succeeds)**:
+1. Upgrade to HA OpenSearch
+2. Add monitoring and alarms
+3. Scale to 10,000+ papers
+4. Consider Neptune for complex graph queries
