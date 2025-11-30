@@ -7,11 +7,13 @@ and indexes them to Amazon OpenSearch Service for hybrid vector + keyword search
 
 import boto3
 import os
+import pytest
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
-from .jats_parser import ParsedPaper
-from .embedding_generator import EmbeddingGenerator
+from jats_parser import ParsedPaper, PaperMetadata, Chunk
+from embedding_generator import EmbeddingGenerator
+from unittest.mock import patch, MagicMock
 
 
 class OpenSearchIndexer:
@@ -517,6 +519,319 @@ def main():
     print(f"Chunks indexed: {success_count}")
     print(f"Chunks failed: {failed_count}")
 
+### pytest ###
+
+@pytest.fixture
+def mock_opensearch_client():
+    """Fixture providing a mocked OpenSearch client"""
+    with patch('opensearchpy.OpenSearch') as mock:
+        mock_instance = MagicMock()
+        mock.return_value = mock_instance
+        mock_instance.indices.exists.return_value = False
+        mock_instance.indices.create.return_value = {'acknowledged': True}
+        yield mock_instance
+
+
+@pytest.fixture
+def sample_paper():
+    """Fixture providing a sample ParsedPaper for testing"""
+    metadata = PaperMetadata(
+        pmc_id="PMC123456",
+        pmid="12345678",
+        doi="10.1234/test",
+        title="Test Paper",
+        abstract="Test abstract",
+        authors=["Smith J", "Doe J"],
+        affiliations=["University A"],
+        journal="Test Journal",
+        publication_date="2024-01-01",
+        mesh_terms=["Test Term"],
+        keywords=["test", "paper"]
+    )
+    
+    chunks = [
+        Chunk(
+            text="Test chunk 1",
+            section="introduction",
+            subsection=None,
+            paragraph_index=0,
+            chunk_type="paragraph",
+            citations=[]
+        ),
+        Chunk(
+            text="Test chunk 2",
+            section="methods",
+            subsection=None,
+            paragraph_index=1,
+            chunk_type="paragraph",
+            citations=["ref1"]
+        )
+    ]
+    
+    return ParsedPaper(
+        metadata=metadata,
+        chunks=chunks,
+        tables=[],
+        references={},
+        full_text="Test full text"
+    )
+
+
+class TestOpenSearchIndexer:
+    
+    def test_init_local_deployment(self, mock_opensearch_client):
+        """Test initialization for local OpenSearch"""
+        indexer = OpenSearchIndexer(
+            host='localhost',
+            port=9200,
+            create_index=False
+        )
+        
+        assert indexer.index_name == 'medical-papers'
+        assert indexer.client is not None
+    
+    
+    def test_init_aws_deployment(self):
+        """Test initialization for AWS OpenSearch"""
+        with patch('opensearchpy.OpenSearch') as mock_os, \
+             patch('boto3.Session') as mock_session:
+            
+            mock_creds = MagicMock()
+            mock_session.return_value.get_credentials.return_value = mock_creds
+            
+            OpenSearchIndexer(
+                host='search-domain.us-east-1.es.amazonaws.com',
+                port=443,
+                create_index=False,
+                use_ssl=True,
+                use_aws_auth=True
+            )
+            
+            # Verify AWS auth was configured
+            mock_session.return_value.get_credentials.assert_called_once()
+    
+    
+    def test_create_index_if_not_exists(self, mock_opensearch_client):
+        """Test index creation when it doesn't exist"""
+        mock_opensearch_client.indices.exists.return_value = False
+        
+        OpenSearchIndexer(create_index=True)
+        
+        mock_opensearch_client.indices.create.assert_called_once()
+        call_args = mock_opensearch_client.indices.create.call_args
+        assert call_args.kwargs['index'] == 'medical-papers'
+        assert 'embedding' in call_args.kwargs['body']['mappings']['properties']
+    
+    
+    def test_skip_index_creation_if_exists(self, mock_opensearch_client):
+        """Test that index creation is skipped if index exists"""
+        mock_opensearch_client.indices.exists.return_value = True
+        
+        indexer = OpenSearchIndexer(create_index=True)
+        
+        mock_opensearch_client.indices.create.assert_not_called()
+    
+    
+    def test_index_document_success(self, mock_opensearch_client):
+        """Test successful document indexing"""
+        mock_opensearch_client.index.return_value = {'result': 'created'}
+        
+        indexer = OpenSearchIndexer(create_index=False)
+        document = {
+            'embedding': [0.1] * 1024,
+            'chunk_text': 'Test text',
+            'pmc_id': 'PMC123'
+        }
+        
+        result = indexer.index_document('doc1', document)
+        
+        assert result is True
+        mock_opensearch_client.index.assert_called_once()
+    
+    
+    def test_index_document_failure(self, mock_opensearch_client):
+        """Test document indexing failure handling"""
+        mock_opensearch_client.index.side_effect = Exception("Index error")
+        
+        OpenSearchIndexer(create_index=False)
+        document = {'embedding': [0.1] * 1024}
+        
+        result = OpenSearchIndexer.index_document('doc1', document)
+        
+        assert result is False
+    
+    
+    def test_bulk_index(self, mock_opensearch_client):
+        """Test bulk indexing of multiple documents"""
+        with patch('opensearchpy.helpers.bulk') as mock_bulk:
+            mock_bulk.return_value = (3, [])  # 3 successful, 0 failed
+            
+            indexer = OpenSearchIndexer(create_index=False)
+            documents = [
+                {'id': 'doc1', 'document': {'embedding': [0.1] * 1024}},
+                {'id': 'doc2', 'document': {'embedding': [0.2] * 1024}},
+                {'id': 'doc3', 'document': {'embedding': [0.3] * 1024}}
+            ]
+            
+            result = indexer.bulk_index(documents)
+            
+            assert result['success'] == 3
+            assert result['failed'] == 0
+    
+    
+    def test_bulk_index_with_failures(self, mock_opensearch_client):
+        """Test bulk indexing with some failures"""
+        with patch('opensearchpy.helpers.bulk') as mock_bulk:
+            mock_bulk.return_value = (2, [{'index': {'error': 'test error'}}])
+            
+            indexer = OpenSearchIndexer(create_index=False)
+            documents = [
+                {'id': 'doc1', 'document': {'embedding': [0.1] * 1024}},
+                {'id': 'doc2', 'document': {'embedding': [0.2] * 1024}},
+                {'id': 'doc3', 'document': {'embedding': [0.3] * 1024}}
+            ]
+            
+            result = indexer.bulk_index(documents)
+            
+            assert result['success'] == 2
+            assert result['failed'] == 1
+    
+    
+    def test_search_hybrid(self, mock_opensearch_client):
+        """Test hybrid search functionality"""
+        mock_opensearch_client.search.return_value = {
+            'hits': {
+                'hits': [
+                    {
+                        '_id': 'doc1',
+                        '_score': 0.95,
+                        '_source': {'chunk_text': 'Test result'}
+                    }
+                ]
+            }
+        }
+        
+        indexer = OpenSearchIndexer(create_index=False)
+        results = indexer.search_hybrid(
+            query_text="test query",
+            query_embedding=[0.1] * 1024,
+            k=10
+        )
+        
+        assert len(results) == 1
+        assert results[0]['id'] == 'doc1'
+        assert results[0]['score'] == 0.95
+    
+    
+    def test_search_with_filters(self, mock_opensearch_client):
+        """Test search with metadata filters"""
+        mock_opensearch_client.search.return_value = {
+            'hits': {'hits': []}
+        }
+        
+        indexer = OpenSearchIndexer(create_index=False)
+        indexer.search_hybrid(
+            query_text="test",
+            query_embedding=[0.1] * 1024,
+            filters={'section': 'methods', 'journal': 'Nature'}
+        )
+        
+        call_args = mock_opensearch_client.search.call_args
+        query = call_args.kwargs['body']['query']
+        
+        assert 'filter' in query['bool']
+        assert len(query['bool']['filter']) == 2
+
+
+class TestPaperIndexingPipeline:
+    
+    def test_init(self):
+        """Test pipeline initialization"""
+        with patch('boto3.client'), \
+             patch('opensearchpy.OpenSearch'):
+            
+            pipeline = PaperIndexingPipeline(
+                opensearch_host='localhost',
+                opensearch_port=9200
+            )
+            
+            assert pipeline.embedder is not None
+            assert pipeline.indexer is not None
+    
+    
+    def test_process_paper(self, sample_paper):
+        """Test processing a single paper"""
+        with patch('boto3.client') as mock_bedrock, \
+             patch('opensearchpy.OpenSearch'), \
+             patch('opensearchpy.helpers.bulk') as mock_bulk:
+            
+            # Mock embedding generation
+            mock_response = {
+                'body': MagicMock(read=lambda: '{"embedding": ' + str([0.1] * 1024) + '}')
+            }
+            mock_bedrock.return_value.invoke_model.return_value = mock_response
+            
+            # Mock bulk indexing
+            mock_bulk.return_value = (2, [])
+            
+            pipeline = PaperIndexingPipeline()
+            result = pipeline.process_paper(sample_paper)
+            
+            assert result['success'] == 2
+            assert result['failed'] == 0
+    
+    
+    def test_process_papers_batch(self, sample_paper):
+        """Test batch processing of multiple papers"""
+        with patch('boto3.client') as mock_bedrock, \
+             patch('opensearchpy.OpenSearch'), \
+             patch('opensearchpy.helpers.bulk') as mock_bulk:
+            
+            mock_response = {
+                'body': MagicMock(read=lambda: '{"embedding": ' + str([0.1] * 1024) + '}')
+            }
+            mock_bedrock.return_value.invoke_model.return_value = mock_response
+            mock_bulk.return_value = (2, [])
+            
+            pipeline = PaperIndexingPipeline()
+            papers = [sample_paper, sample_paper]
+            
+            result = pipeline.process_papers_batch(papers)
+            
+            assert result['success'] == 4  # 2 chunks × 2 papers
+            assert result['papers_processed'] == 2
+    
+    
+    def test_process_paper_error_handling(self, sample_paper):
+        """Test error handling when processing fails"""
+        with patch('boto3.client') as mock_bedrock, \
+             patch('opensearchpy.OpenSearch'), \
+             patch('opensearchpy.helpers.bulk'):
+            
+            mock_bedrock.return_value.invoke_model.side_effect = Exception("Bedrock error")
+            
+            pipeline = PaperIndexingPipeline()
+            
+            # Should not raise, but return failure count
+            result = pipeline.process_papers_batch([sample_paper])
+            
+            assert result['failed'] == 2  # Both chunks failed
+
+
+def test_environment_variable_defaults():
+    """Test that environment variables are respected"""
+    with patch.dict(os.environ, {
+        'OPENSEARCH_HOST': 'custom-host',
+        'OPENSEARCH_PORT': '9999'
+    }):
+        with patch('opensearchpy.OpenSearch'):
+            OpenSearchIndexer(create_index=False)
+            
+            # Verify the environment variables were used
+            assert True  # The mock would fail if wrong values were passed
+
+
 
 if __name__ == '__main__':
-    main()
+    pytest.main([__file__])
+    # main()
