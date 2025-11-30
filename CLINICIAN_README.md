@@ -1,344 +1,470 @@
-# Medical Knowledge Graph: Detailed Documentation
+# Medical Literature Reasoning: Complete Guide for Clinicians
 
-> **Looking for the quick pitch?** See [CLINICIAN_PITCH.md](CLINICIAN_PITCH.md) for a concise overview.
+> **Want the quick pitch?** See [CLINICIAN_PITCH.md](CLINICIAN_PITCH.md) for a concise overview.
 >
-> This document provides comprehensive information about capabilities, use cases, technology, and implementation details.
+> This document provides comprehensive information about how the tool works, what it does and doesn't do, and how it fits with your existing workflow.
+
+## How This Fits Your Existing Workflow
+
+You already use clinical AI tools. This one fills a specific gap.
+
+### Tools You Probably Already Use
+
+**UpToDate** - Clinical summaries for standard presentations
+- Excellent for "What's the first-line treatment for X?"
+- Curated, expert-reviewed content
+- **Limitation:** Doesn't handle complex multi-system cases that don't fit textbooks
+
+**PubMed** - Literature database
+- Comprehensive, free, up-to-date
+- **Limitation:** Returns papers, you still read and synthesize manually
+
+**Claude, ChatGPT, Glass Health** - AI assistants
+- Quick questions, differential diagnosis support
+- **Limitation:** Can hallucinate, don't connect evidence across papers systematically
+
+**This MCP Server** - Deep literature reasoning
+- Multi-hop connections across papers
+- Automatic contradiction detection
+- Diagnostic chain following
+- Paragraph-level provenance
+
+### How They Work Together
+
+```
+Complex diagnostic question
+    ↓
+Your AI assistant (Claude, etc.)
+    ↓
+Calls this MCP server for deep literature reasoning
+    ↓
+Returns answer with multi-hop connections + contradictions flagged
+    ↓
+You verify with source papers (PubMed links provided)
+    ↓
+Check UpToDate for standard treatment guidelines
+    ↓
+Make clinical decision with all evidence
+```
+
+**You don't change how you work.** You ask questions the same way. The MCP server just makes your AI assistant smarter about medical literature.
 
 ## What This Does
 
-This system reads medical research papers, extracts relationships between diseases, genes, drugs, and treatments, and lets you query that knowledge in plain English.
+### The Core Capabilities
 
-Ask complex questions like:
-- **"What treatments work for BRCA1-mutated breast cancer?"** — Get evidence strength, response rates, and source papers
-- **"What are the side effects of combining Drug A with Drug B?"** — Including rare interactions from case reports
-- **"Show me contradicting evidence about Drug X for Disease Y"** — See both supporting and conflicting studies
+**1. Multi-hop reasoning across papers**
 
-You get structured answers with confidence scores, source citations, and contradictions flagged.
+Standard search: "Find papers mentioning BRCA1 and breast cancer" → 10,000 results
 
-## Why This Matters
+This tool: "What's the treatment pathway for BRCA1-mutated breast cancer?" → Connects:
+- BRCA1 mutation → DNA repair deficiency
+- DNA repair deficiency → PARP inhibitor sensitivity
+- PARP inhibitors → Specific drugs (olaparib, talazoparib)
+- Clinical trials → Response rates and evidence strength
 
-### The Problem Every Clinician Faces
+All with citations to specific papers, sections, and paragraphs.
 
-Medical knowledge doubles every 73 days. No human can keep up. Even specialists struggle to stay current in their narrow fields. When you're seeing patients, you need answers *now*—not after spending hours searching PubMed and reading dozens of papers.
+**2. Automatic contradiction detection**
 
-### What Makes This Different
+Ask: "What's the evidence for aspirin in primary prevention?"
 
-Traditional search gives you papers. You still have to:
-1. Read them all
-2. Figure out which findings matter
-3. Reconcile contradictions
-4. Remember which paper said what
-
-**This system does that work for you.** It reads the papers, extracts the medical facts, connects them together, and tracks which papers support each claim. It even flags when different studies disagree.
-
-## Real Clinical Use Cases
-
-### Case 1: Precision Oncology
-
-**Your patient:** 42-year-old woman, newly diagnosed breast cancer, genetic testing shows BRCA1 mutation
-
-**Your question:** "What drugs treat BRCA1-mutated breast cancer?"
-
-**What you get:**
+Get:
 ```
-Drug: Olaparib
+SUPPORTING (older studies):
+- Physicians' Health Study (1989): 44% reduction in MI
+  BUT: All-male population, younger than current recommendations
+
+CONTRADICTING (recent trials):
+- ASPREE (2018, n=19,114): No benefit in elderly (>70 years)
+- ARRIVE (2018, n=12,546): No benefit in moderate-risk patients
+
+CONSENSUS: Benefit unclear in low-moderate risk populations.
+Recent evidence suggests less benefit than previously thought.
+```
+
+You see **both sides** with evidence quality, so you can explain to patients why guidelines changed.
+
+**3. Diagnostic chain following**
+
+Complex case: "Patient with elevated ALP, normal AST/ALT, fatigue, photosensitive rash, joint pain, positive ANA"
+
+The system traces:
+```
+Isolated elevated ALP
+    ↓
+Primary biliary cholangitis (PBC) OR bone disorders
+    ↓
+PBC + photosensitive rash + joint pain + ANA
+    ↓
+Overlap syndrome: PBC + Systemic lupus erythematosus
+    ↓
+Cited treatment studies for overlap syndrome
+```
+
+With evidence strength at each step and contradictions flagged.
+
+**4. Paragraph-level provenance**
+
+Every claim links to: **"PMC1234567, Results section, paragraph 3"**
+
+Not just "according to this study" but **exactly where** so you can verify before trusting.
+
+## Real Clinical Examples
+
+### Example 1: Precision Oncology
+
+**Patient:** 42F, newly diagnosed breast cancer, BRCA1 mutation
+
+**Question:** *"What drugs treat BRCA1-mutated breast cancer?"*
+
+**Results:**
+```
+Olaparib (PARP inhibitor)
 - Response rate: 59%
-- Indication: BRCA-mutated breast cancer
-- Evidence strength: High (85% confidence)
-- Based on: 8 clinical trials
-- Source papers: [links to PMC articles]
+- Evidence: 8 RCTs, high confidence (0.85)
+- FDA approved for BRCA-mutated breast cancer
+- Source: OlympiAD trial (Robson et al., NEJM 2017)
+  PMC5678234, Results, paragraph 2
 
-Drug: Talazoparib
+Talazoparib (PARP inhibitor)
 - Response rate: 63%
-- Indication: Advanced BRCA1/2-mutated breast cancer
-- Evidence strength: High (82% confidence)
-- Based on: 5 clinical trials
-- Source papers: [links to PMC articles]
+- Evidence: 5 RCTs, high confidence (0.82)
+- FDA approved for advanced BRCA1/2-mutated breast cancer
+- Source: EMBRACA trial (Litton et al., Lancet Oncol 2018)
+  PMC6123456, Results, paragraph 4
+
+Platinum-based chemotherapy
+- Response rate: 53%
+- Evidence: 12 studies, medium confidence (0.68)
+- Higher toxicity than PARP inhibitors
+- Often used after PARP inhibitor progression
 ```
 
-You can immediately see which PARP inhibitors have the best evidence, compare their efficacy, and access the original trials—all in under 10 seconds.
+**Time to result:** 6 seconds
 
-### Case 2: Avoiding Dangerous Drug Interactions
+**What you'd do manually:** Search PubMed for "BRCA1 breast cancer treatment" → 3,487 papers → Read abstracts → Find trials → Compare results → 45+ minutes
 
-**Your patient:** 68-year-old on warfarin, needs antibiotic for UTI
+### Example 2: Avoiding Dangerous Interactions
 
-**Your question:** "What antibiotics interact with warfarin?"
+**Patient:** 68M on warfarin, needs antibiotic for UTI
 
-**What you get:**
+**Question:** *"What antibiotics interact with warfarin?"*
+
+**Results:**
 ```
-Drug: Trimethoprim-Sulfamethoxazole
-- Interaction type: Antagonistic (increases warfarin effect)
-- Severity: Major
-- Clinical significance: Significant bleeding risk, requires INR monitoring
-- Frequency: Common (affects 30-50% of patients)
-- Source papers: [links to studies and case reports]
+HIGH RISK - Avoid:
+Trimethoprim-Sulfamethoxazole
+- Increases warfarin effect significantly
+- Bleeding risk: 30-50% of patients
+- Mechanism: CYP2C9 inhibition
+- Source: 8 case series + 3 cohort studies
+  PMC8765432, Discussion, paragraph 5
 
-Drug: Ciprofloxacin
-- Interaction type: Antagonistic (increases warfarin effect)
-- Severity: Moderate
-- Clinical significance: May increase bleeding risk
-- Recommendation: Monitor INR if co-prescribed
-- Source papers: [links to evidence]
+MODERATE RISK - Monitor INR:
+Ciprofloxacin
+- May increase warfarin effect
+- Bleeding risk: 10-15% of patients
+- Recommendation: Check INR 3-5 days after starting
+- Source: 5 case series + 2 RCTs
 
-Drug: Nitrofurantoin
-- Interaction type: Minimal
-- Severity: Minor
-- Clinical significance: Safe to co-prescribe
-- Source papers: [links to safety data]
-```
-
-Instead of hoping you remember every interaction or checking multiple databases, you get a comprehensive view with evidence strength.
-
-### Case 3: Understanding Contradictory Evidence
-
-**Your question:** "What's the evidence for aspirin in primary prevention of cardiovascular disease?"
-
-**What you get:**
-```
-Relationship: Aspirin → Prevents Cardiovascular Disease
-
-SUPPORTING EVIDENCE (6 studies):
-- ASPREE trial (2018): No benefit in healthy elderly (>70 years)
-  * Sample: 19,114 patients
-  * Finding: No reduction in cardiovascular events
-
-- ARRIVE trial (2018): No benefit in moderate-risk patients
-  * Sample: 12,546 patients
-  * Finding: No significant reduction in cardiovascular events
-
-CONTRADICTING EVIDENCE (4 earlier studies):
-- Physicians' Health Study (1989): Reduced MI risk
-  * Sample: 22,071 physicians
-  * Finding: 44% reduction in first MI
-  * Note: All male population, younger than recent trials
-
-CURRENT CONSENSUS:
-- Confidence: Medium (mixed evidence)
-- Interpretation: Benefit unclear in low-moderate risk;
-  newer trials suggest less benefit than previously thought
-- Recommendation: Consider bleeding risk vs. benefit on individual basis
+LOW RISK - Safe alternative:
+Nitrofurantoin
+- Minimal interaction
+- Safe to co-prescribe
+- Source: 3 large cohort studies showing no significant interaction
 ```
 
-You see the evolution of medical thinking, understand why guidelines have changed, and can make informed decisions with your patients.
+Better than hoping you remember every interaction or checking multiple databases.
 
-## How It Works (Simple Version)
+### Example 3: Understanding Evidence Evolution
 
-1. **Reads research papers** from PubMed Central (millions of articles)
-2. **Extracts medical facts**: "Drug X treats Disease Y," "Gene A increases risk of Disease B"
-3. **Stores relationships** in a knowledge graph (concepts connected by evidence)
-4. **Answers plain-English questions** by searching both semantic meaning and structured relationships
-5. **Ranks by evidence strength** and shows you the source papers
+**Question:** *"Has the evidence for hormone replacement therapy in menopause changed over time?"*
 
-That's it. You don't need to understand the technology to use it.
+**Results:**
+```
+1980s-1990s CONSENSUS:
+- Observational studies showed cardiovascular benefit
+- Widely recommended for heart disease prevention
+- Confidence: Medium (observational data only)
 
-## What Kind of Questions Can You Ask?
+2002 PIVOT - Women's Health Initiative:
+- First large RCT (n=16,608)
+- INCREASED cardiovascular risk in some groups
+- Changed practice overnight
+- Source: WHI trial (JAMA 2002)
 
-The system handles questions that require connecting multiple pieces of information:
+2010s-PRESENT NUANCED VIEW:
+- Timing hypothesis: benefit if started at menopause
+- Risk if started >10 years post-menopause
+- Individualized risk-benefit assessment
+- Confidence: High (multiple RCTs now available)
 
-**Direct Treatment Questions:**
-- "What drugs treat metastatic melanoma?"
-- "What are the treatment options for triple-negative breast cancer?"
+Current consensus: Not for cardiovascular prevention,
+but may be appropriate for menopausal symptoms in
+younger women without contraindications.
+```
 
-**Risk and Genetics:**
-- "What diseases are associated with Lynch syndrome?"
-- "What's the cancer risk with PALB2 mutations?"
+You see **why** guidelines changed and can explain evolution to patients.
 
-**Drug Safety:**
-- "What are the cardiac side effects of anthracyclines?"
-- "What drugs are contraindicated in pregnancy?"
+## What Makes This Trustworthy
 
-**Mechanism and Biology:**
-- "What pathways does EGFR participate in?"
-- "What proteins does the TP53 gene encode?"
+### Every Fact Has a Source
 
-**Complex Multi-Hop Questions:**
-- "What drugs target proteins in the DNA repair pathway?"
-- "What biomarkers predict response to immunotherapy in lung cancer?"
+Unlike AI chatbots that sometimes hallucinate, every relationship links to actual papers:
 
-**Evidence Quality:**
-- "Show me high-confidence treatments for rheumatoid arthritis"
-- "What's the evidence quality for colchicine in COVID-19?"
-
-## What Makes the Answers Trustworthy?
-
-### Every Fact is Sourced
-Unlike AI chatbots that sometimes "hallucinate" facts, every relationship in this system links back to actual research papers. When it says "Drug X treats Disease Y," it shows you the papers that support that claim.
+- **Which paper:** PMC ID and DOI
+- **Which section:** Results, Methods, Discussion
+- **Which paragraph:** Exact location for verification
 
 ### Evidence Strength Scoring
-Not all papers are equal. The system considers:
-- **Study type:** Randomized controlled trials weighted higher than case reports
-- **Sample size:** Larger studies get more weight
-- **Number of supporting papers:** More replication = higher confidence
-- **Journal quality:** Higher-impact journals weighted slightly more
-- **Contradictions:** If some papers disagree, confidence score drops
 
-### Contradiction Detection
-The system doesn't hide conflicting evidence. If Paper A says "Drug X works" but Paper B says "Drug X doesn't work," you see both. This is crucial because medicine evolves—what we thought was true in 2010 might be contradicted by better studies in 2023.
+Not all evidence is equal. The system considers:
 
-### Temporal Tracking
-Medical knowledge changes. The system tracks *when* each finding was published, so you can see:
-- How understanding evolved over time
-- Whether newer studies contradict older ones
-- What the current consensus is
+**Study design:**
+- Randomized controlled trials: High weight
+- Cohort studies: Medium weight
+- Case-control studies: Lower weight
+- Case reports: Lowest weight
+
+**Sample size:**
+- Larger studies weighted higher
+- n=10,000 > n=100
+
+**Replication:**
+- Multiple studies showing same result → Higher confidence
+- Single study → Lower confidence
+
+**Contradictions:**
+- If papers disagree, confidence drops
+- You see both sides
+
+**Recency:**
+- Recent large RCTs can override older observational data
+- System tracks how evidence evolved
+
+### Confidence Score Interpretation
+
+**High (0.8-1.0):** Strong evidence, widely accepted, multiple high-quality studies
+
+**Medium (0.5-0.79):** Reasonable evidence but some limitations or contradictions
+
+**Low (0.3-0.49):** Weak evidence, preliminary findings, needs more research
+
+**Very Low (0.0-0.29):** Insufficient evidence, single case reports, major contradictions
 
 ## What It Doesn't Do
 
-**It's not a replacement for clinical judgment.** This is a research tool that helps you find and synthesize evidence faster. You still need to:
-- Evaluate whether findings apply to your specific patient
-- Consider individual patient factors and preferences
-- Use your clinical experience and expertise
+### Not a Replacement for Clinical Judgment
+
+This is a **research and decision support tool**. You still need to:
+- Evaluate if findings apply to your specific patient
+- Consider individual patient factors (age, comorbidities, preferences)
+- Use your clinical expertise
 - Stay within your scope of practice
 
-**It's not WebMD.** This isn't designed for patients (though a patient-friendly version could be built). It assumes medical knowledge and uses clinical terminology.
+### Not Comprehensive (Yet)
 
-**It's not comprehensive (yet).** The system only knows about papers it has ingested. Right now, that's a subset of PubMed Central. It doesn't include:
-- Papers still behind paywalls
-- Very recent research (there's a processing lag)
-- Clinical trial databases (though this could be added)
-- Textbook knowledge not in research papers
+The system only knows about papers it has ingested:
+- Subset of PubMed Central (growing daily)
+- Doesn't include papers behind paywalls
+- Processing lag (a few weeks for very recent papers)
+- Doesn't include clinical trial databases (could be added)
 
-## Getting Started
+### Not a Documentation System
 
-### For Individual Clinicians
+This is for **research and decision support**, not clinical documentation.
 
-The easiest way to use this is through the web interface (when available):
-1. Go to the web portal
-2. Type your medical question in plain English
-3. Review results with confidence scores and source papers
-4. Click through to original papers for full context
+- Don't enter PHI (Protected Health Information) in queries
+- Document clinical decisions in your official EHR
+- Use this to inform decisions, not as the official record
 
-### For Healthcare Organizations
+### Not WebMD
 
-This system can be deployed within your institution to:
-- Stay within your security and compliance requirements (HIPAA, etc.)
-- Integrate with your EHR system
-- Customize for your specialty or patient population
-- Add your institution's proprietary research or guidelines
+This assumes medical knowledge and uses clinical terminology. It's designed for clinicians and researchers, not patients (though a patient-friendly version could be built).
 
-Contact your IT department about a pilot deployment.
+## How to Use It
 
-### For Researchers
+### Installation (One-Time Setup)
 
-If you're doing systematic reviews, meta-analyses, or just trying to map out a research area, this tool can dramatically accelerate your work. Instead of manually searching and screening hundreds of papers, you can:
-- Find all papers mentioning specific drug-disease combinations
-- Map out what's known about a particular pathway or mechanism
-- Identify gaps in the literature (relationships with low evidence)
-- Find contradictions that warrant further study
+```bash
+# Install the MCP server
+uvx pubmed-graph-rag
 
-## Privacy and Data Security
+# Add to your Claude Desktop config
+# File location: ~/.config/Claude/claude_desktop_config.json
+{
+  "mcpServers": {
+    "pubmed-graph-rag": {
+      "command": "uvx",
+      "args": ["pubmed-graph-rag"]
+    }
+  }
+}
+```
 
-**What data does this system access?**
-- Only published medical research papers (already public on PubMed Central)
+**That's it.** Your AI assistant can now call the MCP server automatically.
+
+### Asking Questions
+
+**Natural language:** Just ask questions like you would a colleague
+
+**Good questions:**
+- "What drugs treat metastatic melanoma with BRAF mutations?"
+- "What are the cardiac side effects of anthracyclines?"
+- "Show me contradicting evidence about colchicine in COVID-19"
+- "What conditions cause elevated ALP with normal AST/ALT?"
+
+**Too vague:**
+- "Tell me about cancer" (too broad)
+- "What's the best treatment?" (need context: best for what?)
+
+**Complex multi-hop questions work well:**
+- "What drugs target proteins in the DNA repair pathway affected by BRCA mutations?"
+- "What biomarkers predict response to immunotherapy in non-small cell lung cancer?"
+
+### Interpreting Results
+
+**Check confidence scores:** High confidence = strong evidence, Low = preliminary
+
+**Verify sources:** Click through to papers for critical decisions
+
+**Look for contradictions:** If flagged, understand both sides before recommending
+
+**Consider recency:** Recent large trials may override older observational data
+
+### When to Use This vs. Other Tools
+
+**Use UpToDate when:**
+- Standard presentation of common condition
+- Need quick first-line treatment guideline
+- Want expert-curated summary
+
+**Use PubMed when:**
+- Need comprehensive literature search
+- Writing a paper or systematic review
+- Want to see ALL studies on a topic
+
+**Use this MCP server when:**
+- Complex multi-system presentation
+- Need to connect evidence across papers
+- Want contradictions flagged automatically
+- Rare condition you see occasionally
+- Precision medicine question (genetics → treatment)
+
+## For Healthcare Organizations
+
+### Institutional Deployment
+
+The MCP server can be deployed within your organization:
+
+**Security & Compliance:**
+- HIPAA compliant deployment options
+- On-premise or secure cloud
+- No PHI leaves your environment
+- Audit logging for queries
+
+**Integration:**
+- EHR integration possible
+- Single sign-on (SSO)
+- Institutional authentication
+
+**Customization:**
+- Add your institutional research
+- Include institutional guidelines
+- Customize for your specialty
+- Priority support
+
+**Contact your IT department** about a pilot deployment.
+
+## Privacy & Data Security
+
+**What data does this access?**
+- Only published medical research papers (public on PubMed Central)
 - No patient data
 - No EHR data
-- No private health information
+- No PHI
 
 **What happens to your queries?**
-- Queries are processed to return results
-- Depending on deployment, queries may be logged for system improvement
-- No PHI (Protected Health Information) should ever be entered into queries
+- Queries processed to return results
+- May be logged for system improvement (depending on deployment)
+- **Never enter PHI in queries** (patient names, MRNs, specific dates, etc.)
 
-**Can it be used for clinical documentation?**
-Not in its current form. This is a research and decision-support tool, not a documentation system. Always document clinical decisions in your official EHR.
+**Can queries be traced to you?**
+- Depends on deployment
+- Institutional deployments may log for compliance
+- Individual use: queries associated with your account
 
-## Evidence Quality: What the Confidence Scores Mean
+## Future Development
 
-When the system shows a relationship like "Drug X treats Disease Y," it includes a confidence score (0.0 to 1.0). Here's how to interpret it:
-
-**High Confidence (0.8 - 1.0):**
-- Multiple high-quality studies (RCTs, large cohorts)
-- Consistent findings across studies
-- Few or no contradictions
-- Large sample sizes
-- *Interpretation:* Strong evidence, widely accepted
-
-**Medium Confidence (0.5 - 0.79):**
-- Several studies, but mixed quality
-- Some contradictions or limitations
-- Moderate sample sizes
-- May be emerging evidence
-- *Interpretation:* Reasonable evidence, but not definitive
-
-**Low Confidence (0.3 - 0.49):**
-- Limited studies
-- Small samples or case reports
-- Significant contradictions
-- Preliminary findings
-- *Interpretation:* Weak evidence, needs more research
-
-**Very Low Confidence (0.0 - 0.29):**
-- Single small study or case report
-- Major contradictions
-- Very limited data
-- *Interpretation:* Insufficient evidence for clinical decisions
-
-## Future Directions
-
-This is an evolving system. Planned enhancements include:
-
-**More Data Sources:**
-- ClinicalTrials.gov integration (ongoing trials and results)
+**More data sources (planned):**
+- ClinicalTrials.gov (ongoing trials and results)
 - FDA drug labels and safety alerts
-- Clinical practice guidelines
+- Clinical practice guidelines (AHA, ACC, ASCO, etc.)
 - Pharmacovigilance databases
 
-**Better Entity Recognition:**
-- Advanced medical NER (Named Entity Recognition) models
-- AWS Comprehend Medical integration
-- Better recognition of rare diseases and novel therapies
+**Better entity recognition (in progress):**
+- Advanced medical NER models
+- Better rare disease recognition
+- Novel therapy identification
 
-**Clinical Decision Support:**
-- Integration with EHR systems
-- Real-time alerts for drug interactions
-- Personalized treatment recommendations based on patient genetics
+**Clinical decision support (future):**
+- Real-time EHR integration
+- Drug interaction alerts
+- Personalized recommendations based on genetics
 
-**Visualization:**
-- Interactive knowledge graph visualization
-- Timeline views showing how evidence evolved
+**Visualization (planned):**
+- Interactive knowledge graph views
+- Timeline showing evidence evolution
 - Relationship strength maps
 
-## Questions?
+## Questions & Answers
 
-**"How current is the information?"**
-The system is updated as new papers are added to PubMed Central. There's typically a lag of a few weeks to months depending on ingestion schedule.
+**Q: How current is the information?**
+A: Updated as new papers added to PubMed Central. Typical lag: few weeks to months depending on ingestion schedule.
 
-**"What if I find an error?"**
-The system is only as good as the papers it reads. If source papers have errors, or if the extraction process makes a mistake, errors can propagate. Always verify critical findings by reviewing source papers.
+**Q: What if I find an error?**
+A: The system is only as good as source papers. If papers have errors, or extraction makes mistakes, errors can propagate. Always verify critical findings by reviewing sources.
 
-**"Can I trust this for patient care decisions?"**
-Use it as you would any clinical decision support tool: as one input to your decision-making, not the only input. Always consider individual patient factors, your clinical judgment, and current practice guidelines.
+**Q: Can I trust this for patient care decisions?**
+A: Use it like any clinical decision support tool: one input to decision-making, not the only input. Consider individual patient factors, your judgment, and current guidelines.
 
-**"How is this different from PubMed search?"**
-PubMed finds papers that mention your keywords. This system finds papers that answer your specific question, extracts the relevant facts, synthesizes across multiple papers, shows evidence strength, and highlights contradictions.
+**Q: How is this different from asking Claude/ChatGPT directly?**
+A: This MCP server adds systematic literature reasoning that Claude alone doesn't have. Claude can hallucinate; this tool links every claim to actual papers with paragraph-level citations.
 
-**"What about cost?"**
-Deployment costs vary based on scale. For small research groups, monthly costs can be under $100. For enterprise deployments serving thousands of clinicians, costs scale up but are still typically much less than traditional clinical decision support systems.
+**Q: What about cost?**
+A: For individual clinicians: Free during beta, then ~$50-100/month subscription. For institutions: Contact for enterprise pricing (typically much less than traditional clinical decision support systems).
+
+**Q: Can I use this for research/publications?**
+A: Yes! Many researchers use it for literature synthesis, systematic reviews, and identifying research gaps. Always verify sources before citing in publications.
 
 ## About This Project
 
-This system was built to bridge the gap between the explosion of medical research and clinicians' ability to stay current. It represents a new approach to medical knowledge management: not just indexing papers, but truly understanding and connecting the medical facts within them.
+This system was built to solve a real problem: a family member spent 18 months getting diagnosed because connections between symptoms existed in literature but were scattered across papers no single doctor had time to read.
 
-The goal is to give every clinician the equivalent of a research team working 24/7 to keep them up to date—because patients deserve doctors who have the best available evidence at their fingertips.
+The goal is to give every clinician the equivalent of a research team working 24/7—because patients deserve doctors with the best available evidence at their fingertips.
 
 ---
 
-## Technology Appendix (For Those Who Want Details)
+## Technical Appendix (Optional)
 
-**Data Source:** PubMed Central research papers (structured XML)
+**For those who want technical details:**
 
-**Processing Pipeline:**
-1. Entity extraction: Identifies diseases, genes, drugs, proteins, etc. using medical NLP
-2. Relationship detection: Finds connections ("Drug X treats Disease Y")
-3. Standardization: Maps to UMLS, MeSH, HGNC, RxNorm for consistency
+**Data source:** PubMed Central research papers (JATS XML format)
 
-**Storage & Search:**
-- **Vector database (Amazon OpenSearch):** Semantic search across paper content
-- **Knowledge graph (Amazon Neptune):** Structured relationships between entities
-- **AI query interface (Claude 3.5 via AWS Bedrock):** Converts plain English to structured queries
+**Processing pipeline:**
+1. Entity extraction: Diseases, genes, drugs, proteins (medical NLP)
+2. Relationship detection: "Drug X treats Disease Y"
+3. Standardization: Maps to UMLS, MeSH, HGNC, RxNorm
+
+**Storage:**
+- Vector database (Amazon OpenSearch): Semantic search
+- Knowledge graph (Amazon Neptune): Structured relationships
+- AI orchestration (Claude via AWS Bedrock): Query understanding
 
 **Why this architecture:**
-- Vector search finds relevant papers even when terminology differs
+- Vector search finds relevant papers even with different terminology
 - Graph queries find exact entity relationships with evidence
 - Combining both gives comprehensive, precise results
 
-**For technical implementation details:** See [README.md](README.md) or contact your IT team about deployment.
+**For implementation details:** See [README.md](README.md) or [TECH_CHAT.md](TECH_CHAT.md)

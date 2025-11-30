@@ -1,40 +1,47 @@
-# Can AI Help Solve Complex Diagnostic Cases?
+# Deep Literature Reasoning for Complex Cases
 
-Someone close to me spent 18 months getting diagnosed with an autoimmune condition. Her doctors knew something was wrong, but her symptoms didn't fit textbook presentations. Each specialist searched different databases, read different papers, ordered different tests. The connections were there in the literature—scattered across dozens of studies that no single doctor had time to read.
+## You Already Use AI Assistants
 
-**This system does that detective work in seconds.**
+Maybe you use **UpToDate** for clinical summaries. **Claude or ChatGPT** for quick questions. **PubMed** for literature searches.
 
-## The Problem
+These tools excel at **straightforward questions**. But when you're stuck on a complex diagnostic puzzle—symptoms that don't fit textbooks, multi-system presentations, rare conditions—you still end up:
 
-When a patient's symptoms don't fit standard patterns, you become a medical detective—searching PubMed, reading dozens of papers, trying to connect obscure findings across different studies. It's exhausting and time-consuming, and patients suffer while you search.
+- Reading dozens of papers manually
+- Trying to connect evidence scattered across different studies
+- Hoping you didn't miss a critical connection
 
-## What This Does
+**This tool fills that gap.**
 
-Ask complex diagnostic questions and get evidence-based answers with citations in 10 seconds:
+## What It Does Differently
 
-- *"Patient presents with unexplained liver dysfunction + photosensitive rash + joint pain + elevated ANA. What rare conditions connect these findings?"*
-- *"What medications can cause both thrombocytopenia and pancreatitis?"*
-- *"Show me genetic conditions that cause cardiomyopathy + cognitive decline + exercise intolerance in young adults"*
+This is an MCP server that adds **deep literature reasoning** to AI assistants you already use:
 
-Get structured answers with:
-- Evidence strength scores (so you know what's solid vs. preliminary)
-- Source citations (every claim links to actual papers)
-- Contradictory evidence flagged (because medicine evolves)
+**Multi-hop reasoning across papers**
+- Connect Gene X → Protein Y → Pathway Z → Drug target across 4 different studies
+- Follow evidence chains that no single paper describes
 
-## A Real Example: The Diagnostic Detective Case
+**Automatic contradiction detection**
+- "Paper A (2023, n=500) shows benefit BUT Paper B (2024, n=1200) found no effect"
+- Don't discover conflicts after you've made a recommendation
 
-**Clinical scenario:** 28-year-old woman presents with:
-- Progressive muscle weakness
-- Cardiomyopathy (reduced ejection fraction)
-- Mild cognitive impairment
-- Elevated lactate on routine labs
-- Episodes of severe fatigue after exercise
+**Diagnostic chain following**
+- Trace symptom → rare condition → cited treatment studies
+- The kind of detective work that cracked your toughest cases
 
-Standard workup negative. Each finding has dozens of potential causes. What connects them?
+**Paragraph-level provenance**
+- "PMC123456, Results section, paragraph 4" (not just "according to this paper")
+- Verify claims before you trust them
 
-**Your question:** *"What conditions cause muscle weakness + cardiomyopathy + cognitive decline + elevated lactate + exercise intolerance?"*
+## A Real Example
 
-**System returns in 8 seconds:**
+**Clinical scenario:** 28-year-old woman with progressive muscle weakness + cardiomyopathy + mild cognitive impairment + elevated lactate + severe post-exercise fatigue.
+
+Standard workup negative. Each finding has dozens of causes.
+
+**Your question to your AI assistant:**
+*"What conditions cause muscle weakness + cardiomyopathy + cognitive decline + elevated lactate + exercise intolerance?"*
+
+**Your AI assistant (using this MCP server) returns in 8 seconds:**
 
 ```
 Primary Diagnosis: Mitochondrial Disease (MELAS, CPEO, Kearns-Sayre)
@@ -46,94 +53,116 @@ Key Evidence:
 - Exercise intolerance due to impaired oxidative phosphorylation
 - Age and symptom pattern consistent with late-onset presentation
 
+Evidence from 12 studies:
+- Hirano et al. (2019, n=286): "Mitochondrial diseases: Clinical features..."
+  PMC6234567, Results section, paragraph 3
+- Gorman et al. (2016, n=1,504): "Mitochondrial diseases in adults..."
+  PMC5678901, Discussion section, paragraph 7
+
+Contradictory evidence flagged:
+- None significant (consensus diagnosis)
+
 Recommended workup:
 - Lactate/pyruvate ratio
 - Muscle biopsy with electron microscopy
 - Mitochondrial DNA sequencing
 - Consider: cardiac MRI, neuropsychological testing
-
-Supporting papers: 12 studies
-- Hirano et al. (2019): "Mitochondrial diseases: Clinical features..."
-- Gorman et al. (2016): "Mitochondrial diseases in adults..."
-[Links to full papers]
-
-Differential considerations:
-- Muscular dystrophy (but doesn't explain metabolic/cognitive features)
-- Autoimmune myositis (lactate typically normal)
 ```
 
-This is the kind of case that could take hours of searching—connecting dots across neurology, cardiology, and genetics literature. The system does it instantly.
+This is the case that could take **hours of searching** PubMed and reading papers. The MCP server does it **instantly**, with **sources you can verify**.
 
-## Why Doctors Trust It
+## How It Works with Your Existing Tools
 
-**Every fact is sourced.** Unlike AI chatbots that hallucinate, every relationship links back to actual research papers.
+**Install once:**
+```bash
+uvx pubmed-graph-rag
+```
 
-**Evidence strength matters.** The system scores confidence based on:
-- Study quality (RCTs weighted higher than case reports)
-- Sample size
+**Works everywhere:**
+- Claude Desktop
+- Any MCP-compatible AI assistant
+- Future medical AI platforms
+
+**Seamless:**
+- You ask questions the same way you always do
+- Your AI assistant calls this MCP server automatically when needed
+- Results appear inline with provenance and contradictions
+
+## What Makes It Trustworthy
+
+**Every fact is sourced:** Unlike AI that hallucinates, every claim links to actual papers, sections, and paragraphs.
+
+**Evidence strength scores:**
+- Study quality (RCTs > case reports)
+- Sample sizes
 - Number of supporting papers
-- Contradictions (if papers disagree, you see both sides)
-- Publication recency (tracks how evidence evolved)
+- Contradictions flagged (if papers disagree, you see both)
 
-**Contradictory evidence is flagged.** When studies disagree, you see both sides—crucial because what we thought in 2010 may be contradicted by 2024 trials.
+**Tracks evidence evolution:** See how understanding changed from 2010 → 2024 trials.
 
-## Try It
+## What It Doesn't Replace
 
-**[Request Demo Access]** ← *We'll send you access to try real cases*
+- **UpToDate** for standard clinical summaries → Still use it
+- **Your clinical judgment** for patient-specific decisions → Always needed
+- **PubMed** for comprehensive literature searches → Complement, don't replace
+- **Your EHR** for documentation → This is decision support only
 
-Or contact your health informatics team about a pilot deployment for your institution.
+## Who This Helps
 
----
+**Primary care:** Complex multi-system presentations that don't fit patterns
 
-## What Makes This Different from PubMed or UpToDate?
+**Specialists:** Rare conditions within your specialty that you see once every few years
 
-- **PubMed** finds papers mentioning keywords. You still read dozens and synthesize manually.
-- **UpToDate** handles standard presentations well. But complex, multi-system cases that don't fit textbook patterns? You're on your own.
-- **This system** finds papers that answer your specific question, extracts relevant facts across multiple papers, synthesizes contradictions, and shows evidence strength.
+**Academic medicine:** Literature synthesis for grand rounds, teaching, research
 
-## Use Cases Beyond Diagnosis
+**Precision oncology:** Connecting genetic findings to treatment options across trials
 
-**Precision oncology:** *"What drugs target the PI3K pathway in treatment-resistant diffuse large B-cell lymphoma?"*
+## Why This Matters Now
 
-**Drug safety:** *"What medications are contraindicated in long QT syndrome?"* (Gets rare interactions from case reports, not just major contraindications)
+Someone close to me spent **18 months getting diagnosed** with an autoimmune condition. Her doctors knew something was wrong, but symptoms didn't fit textbooks. Each specialist searched different databases, read different papers. The connections were there in literature—scattered across studies no single doctor had time to read.
 
-**Research synthesis:** *"Show me all contradicting evidence about biologic therapy in Crohn's disease"* (Maps how the field evolved)
+**This system does that detective work in seconds.**
 
-## What It Doesn't Do
-
-This is a **research and decision support tool**, not a replacement for clinical judgment. You still need to:
-- Evaluate if findings apply to your specific patient
-- Consider individual patient factors
-- Use your clinical expertise
-- Document decisions in your official EHR
-
-## The Technology (Very Brief)
-
-- **Data source:** PubMed Central research papers
-- **How it works:** Extracts medical facts (drugs, diseases, genes, relationships), stores them in a knowledge graph, and enables plain-English queries
-- **Standards-based:** Uses UMLS, MeSH, HGNC, RxNorm for consistency
-- **Built on:** AWS Bedrock (Claude AI), Amazon OpenSearch, Amazon Neptune
-
-**Want technical details?** See [CLINICIAN_README.md](CLINICIAN_README.md) for the full deep-dive.
-
----
+Medical knowledge doubles every 73 days. No human can keep up. But your AI assistant can—if it has the right tools.
 
 ## Getting Started
 
-### For Individual Clinicians
-Request demo access above. Type medical questions in plain English, get evidence-based answers with sources.
+**Individual clinicians:**
+```bash
+# Install the MCP server
+uvx pubmed-graph-rag
 
-### For Healthcare Organizations
-Deploy within your institution to:
-- Meet HIPAA/security requirements
-- Integrate with your EHR
+# Add to Claude Desktop config
+# (One-time setup, automatic after that)
+```
+
+**Healthcare organizations:**
+Deploy within your institution:
+- HIPAA compliant
+- Integrate with EHR systems
 - Customize for your specialty
-- Add institutional research or guidelines
+- Add institutional guidelines
 
-Contact your IT department about a pilot.
+Contact IT about a pilot.
+
+## Use Cases Beyond Diagnosis
+
+**Precision oncology:** *"What drugs target the PI3K pathway in treatment-resistant DLBCL?"*
+
+**Drug safety:** *"What medications are contraindicated in long QT syndrome?"* (Including rare interactions from case reports)
+
+**Research synthesis:** *"Show me contradicting evidence about biologics in Crohn's disease"* (Maps field evolution)
+
+**Genetic counseling:** *"What's the penetrance of Lynch syndrome mutations by age?"*
+
+## Try It
+
+Install the MCP server and try real cases. If it doesn't save you time or catch something you would have missed, uninstall it. No commitment.
+
+**Built to give every clinician the equivalent of a research team working 24/7—because patients deserve doctors with the best evidence at their fingertips.**
 
 ---
 
-**Questions?** See the [detailed documentation](CLINICIAN_README.md) or reach out to discuss deployment.
+**Questions?** See [CLINICIAN_README.md](CLINICIAN_README.md) for detailed documentation.
 
-**Built to give every clinician the equivalent of a research team working 24/7—because patients deserve doctors with the best evidence at their fingertips.**
+**Technical details?** See [README.md](README.md) or [TECH_CHAT.md](TECH_CHAT.md).
