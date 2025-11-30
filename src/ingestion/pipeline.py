@@ -6,14 +6,11 @@ and indexes them to Amazon OpenSearch Service for hybrid vector + keyword search
 """
 
 import boto3
-import json
 import os
-from typing import List, Dict, Any, Optional, Union
-from dataclasses import asdict
-import time
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
-from .jats_parser import ParsedPaper, Chunk
+from .jats_parser import ParsedPaper
 from .embedding_generator import EmbeddingGenerator
 
 

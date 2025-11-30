@@ -5,10 +5,15 @@ Extracts structured content from JATS (Journal Article Tag Suite) XML format
 for medical research paper ingestion into knowledge graph system.
 """
 
+import _pytest.assertion
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
-from datetime import datetime
+import os
+import pytest
+import urllib.request
+import tempfile
+from pathlib import Path
 
 
 class Citation(BaseModel):
@@ -21,6 +26,7 @@ class Citation(BaseModel):
         cited_doi (Optional[str]): The cited DOI.
         citation_text (Optional[str]): The text of the citation.
     """
+
     ref_id: str
     cited_pmid: Optional[str] = None
     cited_pmc: Optional[str] = None
@@ -38,6 +44,7 @@ class TableData(BaseModel):
         content (str): The table content as a string.
         section (str): The section where the table is located.
     """
+
     table_id: str
     label: str
     caption: str
@@ -56,6 +63,7 @@ class Chunk(BaseModel):
         chunk_type (str): The type of chunk ('paragraph', 'sentence', 'abstract').
         citations (List[str]): List of citation IDs in this chunk.
     """
+
     text: str
     section: str
     subsection: Optional[str]
@@ -80,6 +88,7 @@ class PaperMetadata(BaseModel):
         mesh_terms (List[str]): List of MeSH terms.
         keywords (List[str]): List of keywords.
     """
+
     pmc_id: str
     pmid: Optional[str]
     doi: Optional[str]
@@ -103,6 +112,7 @@ class ParsedPaper(BaseModel):
         references (Dict[str, Citation]): Dictionary of references.
         full_text (str): Complete text of the paper.
     """
+
     metadata: PaperMetadata
     chunks: List[Chunk]
     tables: List[TableData]
@@ -120,9 +130,9 @@ class JATSParser:
 
     # Common JATS XML namespaces
     NAMESPACES = {
-        'jats': 'http://jats.nlm.nih.gov',
-        'xlink': 'http://www.w3.org/1999/xlink',
-        'mml': 'http://www.w3.org/1998/Math/MathML'
+        "jats": "http://jats.nlm.nih.gov",
+        "xlink": "http://www.w3.org/1999/xlink",
+        "mml": "http://www.w3.org/1998/Math/MathML",
     }
 
     def __init__(self, xml_path: str):
@@ -147,22 +157,24 @@ class JATSParser:
             chunks=chunks,
             tables=tables,
             references=references,
-            full_text=full_text
+            full_text=full_text,
         )
 
     def _parse_metadata(self) -> PaperMetadata:
         """Extract paper metadata from front matter"""
-        front = self.root.find('.//front')
+        front = self.root.find(".//front")
         if front is None:
             raise ValueError("No front matter found in JATS XML")
 
         # Article IDs
-        pmc_id = self._get_article_id(front, 'pmc')
-        pmid = self._get_article_id(front, 'pmid')
-        doi = self._get_article_id(front, 'doi')
+        pmc_id = self._get_article_id(front, "pmc") or self._get_article_id(
+            front, "pmc-domain"
+        )
+        pmid = self._get_article_id(front, "pmid")
+        doi = self._get_article_id(front, "doi")
 
         # Title
-        title = self._get_text(front.find('.//article-title')) or "Unknown Title"
+        title = self._get_text(front.find(".//article-title")) or "Unknown Title"
 
         # Abstract
         abstract = self._parse_abstract(front)
@@ -171,7 +183,7 @@ class JATSParser:
         authors, affiliations = self._parse_authors(front)
 
         # Journal info
-        journal = self._get_text(front.find('.//journal-title')) or "Unknown Journal"
+        journal = self._get_text(front.find(".//journal-title")) or "Unknown Journal"
 
         # Publication date
         pub_date = self._parse_pub_date(front)
@@ -191,37 +203,40 @@ class JATSParser:
             journal=journal,
             publication_date=pub_date,
             mesh_terms=mesh_terms,
-            keywords=keywords
+            keywords=keywords,
         )
 
     def _get_article_id(self, front: ET.Element, id_type: str) -> Optional[str]:
         """Extract article ID of specific type"""
-        for article_id in front.findall('.//article-id'):
-            if article_id.get('pub-id-type') == id_type:
+        for article_id in front.findall(".//article-id"):
+            if article_id.get("pub-id-type") == id_type:
+                return article_id.text
+        for article_id in front.findall(".//journal-id"):
+            if article_id.get("journal-id-type") == id_type:
                 return article_id.text
         return None
 
     def _parse_abstract(self, front: ET.Element) -> str:
         """Extract and concatenate abstract text"""
-        abstract_elem = front.find('.//abstract')
+        abstract_elem = front.find(".//abstract")
         if abstract_elem is None:
             return ""
 
         # Handle structured abstracts (with sections)
         sections = []
-        for sec in abstract_elem.findall('.//sec'):
-            title = self._get_text(sec.find('.//title'))
-            content = ' '.join(self._get_text(p) for p in sec.findall('.//p'))
+        for sec in abstract_elem.findall(".//sec"):
+            title = self._get_text(sec.find(".//title"))
+            content = " ".join(self._get_text(p) for p in sec.findall(".//p"))
             if title:
                 sections.append(f"{title}: {content}")
             else:
                 sections.append(content)
 
         if sections:
-            return ' '.join(sections)
+            return " ".join(sections)
 
         # Handle unstructured abstract
-        return ' '.join(self._get_text(p) for p in abstract_elem.findall('.//p'))
+        return " ".join(self._get_text(p) for p in abstract_elem.findall(".//p"))
 
     def _parse_authors(self, front: ET.Element) -> tuple[List[str], List[str]]:
         """Extract authors and their affiliations"""
@@ -230,14 +245,14 @@ class JATSParser:
 
         # Authors
         for contrib in front.findall('.//contrib[@contrib-type="author"]'):
-            surname = self._get_text(contrib.find('.//surname'))
-            given_names = self._get_text(contrib.find('.//given-names'))
+            surname = self._get_text(contrib.find(".//surname"))
+            given_names = self._get_text(contrib.find(".//given-names"))
             if surname:
                 author = f"{surname} {given_names}" if given_names else surname
                 authors.append(author)
 
         # Affiliations
-        for aff in front.findall('.//aff'):
+        for aff in front.findall(".//aff"):
             aff_text = self._get_text(aff)
             if aff_text:
                 affiliations.append(aff_text)
@@ -246,27 +261,29 @@ class JATSParser:
 
     def _parse_pub_date(self, front: ET.Element) -> Optional[str]:
         """Extract publication date"""
-        pub_date = front.find('.//pub-date[@pub-type="epub"]') or \
-                   front.find('.//pub-date[@pub-type="ppub"]') or \
-                   front.find('.//pub-date')
+        x = front.find('.//pub-date[@pub-type="epub"]')
+        y = front.find('.//pub-date[@pub-type="ppub"]')
+        z = front.find(".//pub-date")
+        pub_date = x if x is not None else (y if y is not None else z)
+        if pub_date is None:
+            return None
 
-        if pub_date is not None:
-            year = self._get_text(pub_date.find('.//year'))
-            month = self._get_text(pub_date.find('.//month')) or '01'
-            day = self._get_text(pub_date.find('.//day')) or '01'
+        year = self._get_text(pub_date.find(".//year"))
+        if year is None:
+            return None
+        month = self._get_text(pub_date.find(".//month")) or "01"
+        day = self._get_text(pub_date.find(".//day")) or "01"
 
-            if year:
-                try:
-                    return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-                except:
-                    return year
-        return None
+        try:
+            return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+        except:
+            return year
 
     def _parse_mesh_terms(self, front: ET.Element) -> List[str]:
         """Extract MeSH (Medical Subject Headings) terms"""
         mesh_terms = []
         for kwd_group in front.findall('.//kwd-group[@kwd-group-type="MeSH"]'):
-            for kwd in kwd_group.findall('.//kwd'):
+            for kwd in kwd_group.findall(".//kwd"):
                 term = self._get_text(kwd)
                 if term:
                     mesh_terms.append(term)
@@ -275,9 +292,9 @@ class JATSParser:
     def _parse_keywords(self, front: ET.Element) -> List[str]:
         """Extract author keywords"""
         keywords = []
-        for kwd_group in front.findall('.//kwd-group'):
-            if kwd_group.get('kwd-group-type') != 'MeSH':
-                for kwd in kwd_group.findall('.//kwd'):
+        for kwd_group in front.findall(".//kwd-group"):
+            if kwd_group.get("kwd-group-type") != "MeSH":
+                for kwd in kwd_group.findall(".//kwd"):
                     term = self._get_text(kwd)
                     if term:
                         keywords.append(term)
@@ -286,12 +303,12 @@ class JATSParser:
     def _parse_references(self) -> Dict[str, Citation]:
         """Extract all references/citations"""
         references = {}
-        back = self.root.find('.//back')
+        back = self.root.find(".//back")
         if back is None:
             return references
 
-        for ref in back.findall('.//ref'):
-            ref_id = ref.get('id')
+        for ref in back.findall(".//ref"):
+            ref_id = ref.get("id")
             if not ref_id:
                 continue
 
@@ -300,13 +317,13 @@ class JATSParser:
             pmc = None
             doi = None
 
-            for pub_id in ref.findall('.//pub-id'):
-                pub_id_type = pub_id.get('pub-id-type')
-                if pub_id_type == 'pmid':
+            for pub_id in ref.findall(".//pub-id"):
+                pub_id_type = pub_id.get("pub-id-type")
+                if pub_id_type == "pmid":
                     pmid = pub_id.text
-                elif pub_id_type == 'pmc':
+                elif pub_id_type == "pmc":
                     pmc = pub_id.text
-                elif pub_id_type == 'doi':
+                elif pub_id_type == "doi":
                     doi = pub_id.text
 
             # Get citation text
@@ -317,7 +334,7 @@ class JATSParser:
                 cited_pmid=pmid,
                 cited_pmc=pmc,
                 cited_doi=doi,
-                citation_text=citation_text
+                citation_text=citation_text,
             )
 
         return references
@@ -325,69 +342,84 @@ class JATSParser:
     def _parse_body(self, references: Dict[str, Citation]) -> List[Chunk]:
         """Parse the main body of the paper into chunks"""
         chunks = []
-        body = self.root.find('.//body')
+        body = self.root.find(".//body")
         if body is None:
             return chunks
 
         # Add abstract as first chunk
-        front = self.root.find('.//front')
+        front = self.root.find(".//front")
         if front is not None:
             abstract_text = self._parse_abstract(front)
             if abstract_text:
-                chunks.append(Chunk(
-                    text=abstract_text,
-                    section='abstract',
-                    subsection=None,
-                    paragraph_index=0,
-                    chunk_type='abstract',
-                    citations=[]
-                ))
+                chunks.append(
+                    Chunk(
+                        text=abstract_text,
+                        section="abstract",
+                        subsection=None,
+                        paragraph_index=0,
+                        chunk_type="abstract",
+                        citations=[],
+                    )
+                )
 
         # Process each section
-        for sec in body.findall('.//sec'):
-            section_name = self._get_text(sec.find('.//title')) or 'unknown'
-            section_name = section_name.lower().replace(' ', '_')
+        for sec in body.findall(".//sec"):
+            section_name = self._get_text(sec.find(".//title")) or "unknown"
+            section_name = section_name.lower().replace(" ", "_")
 
             # Process subsections recursively
             chunks.extend(self._parse_section(sec, section_name, references))
 
         return chunks
 
-    def _parse_section(self, sec: ET.Element, parent_section: str,
-                       references: Dict[str, Citation],
-                       paragraph_counter: int = 0) -> List[Chunk]:
+    def _parse_section(
+        self,
+        sec: ET.Element,
+        parent_section: str,
+        references: Dict[str, Citation],
+        paragraph_counter: int = 0,
+    ) -> List[Chunk]:
         """Recursively parse a section and its subsections"""
         chunks = []
 
         # Get section title (for subsections)
-        title = self._get_text(sec.find('./title'))
-        subsection = title.lower().replace(' ', '_') if title else None
+        title = self._get_text(sec.find("./title"))
+        subsection = title.lower().replace(" ", "_") if title else None
 
         # Process paragraphs in this section
-        for p in sec.findall('./p'):
+        for p in sec.findall("./p"):
             paragraph_text = self._get_paragraph_text(p)
             if not paragraph_text.strip():
                 continue
 
             # Extract citation references in this paragraph
-            citation_ids = [xref.get('rid') for xref in p.findall('.//xref[@ref-type="bibr"]')
-                          if xref.get('rid') in references]
+            citation_ids = [
+                xref.get("rid")
+                for xref in p.findall('.//xref[@ref-type="bibr"]')
+                if xref.get("rid") in references
+            ]
 
-            chunks.append(Chunk(
-                text=paragraph_text,
-                section=parent_section,
-                subsection=subsection,
-                paragraph_index=paragraph_counter,
-                chunk_type='paragraph',
-                citations=citation_ids
-            ))
+            chunks.append(
+                Chunk(
+                    text=paragraph_text,
+                    section=parent_section,
+                    subsection=subsection,
+                    paragraph_index=paragraph_counter,
+                    chunk_type="paragraph",
+                    citations=citation_ids,
+                )
+            )
             paragraph_counter += 1
 
         # Recursively process nested sections
-        for nested_sec in sec.findall('./sec'):
-            nested_title = self._get_text(nested_sec.find('./title')) or 'subsection'
+        for nested_sec in sec.findall("./sec"):
+            nested_title = self._get_text(nested_sec.find("./title")) or "subsection"
             nested_name = f"{parent_section}.{nested_title.lower().replace(' ', '_')}"
-            chunks.extend(self._parse_section(nested_sec, nested_name, references, paragraph_counter))
+            chunks.extend(
+                self._parse_section(
+                    nested_sec, nested_name, references, paragraph_counter
+                )
+            )
             paragraph_counter += len(chunks)
 
         return chunks
@@ -396,29 +428,31 @@ class JATSParser:
         """Extract tables with their captions"""
         tables = []
 
-        for table_wrap in self.root.findall('.//table-wrap'):
-            table_id = table_wrap.get('id', 'unknown')
+        for table_wrap in self.root.findall(".//table-wrap"):
+            table_id = table_wrap.get("id", "unknown")
 
             # Get label (e.g., "Table 1")
-            label = self._get_text(table_wrap.find('.//label')) or table_id
+            label = self._get_text(table_wrap.find(".//label")) or table_id
 
             # Get caption
-            caption = self._get_text(table_wrap.find('.//caption')) or ""
+            caption = self._get_text(table_wrap.find(".//caption")) or ""
 
             # Get table content (simplified - just text representation)
-            table_elem = table_wrap.find('.//table')
+            table_elem = table_wrap.find(".//table")
             content = self._get_text(table_elem) if table_elem is not None else ""
 
             # Try to determine which section this table belongs to
             section = self._find_table_section(table_wrap)
 
-            tables.append(TableData(
-                table_id=table_id,
-                label=label,
-                caption=caption,
-                content=content,
-                section=section
-            ))
+            tables.append(
+                TableData(
+                    table_id=table_id,
+                    label=label,
+                    caption=caption,
+                    content=content,
+                    section=section,
+                )
+            )
 
         return tables
 
@@ -427,31 +461,31 @@ class JATSParser:
         # Walk up the tree to find the containing section
         parent = table_wrap
         while parent is not None:
-            if parent.tag == 'sec':
-                title = self._get_text(parent.find('./title'))
-                return title.lower().replace(' ', '_') if title else 'unknown'
-            parent = parent.getparent() if hasattr(parent, 'getparent') else None
-        return 'unknown'
+            if parent.tag == "sec":
+                title = self._get_text(parent.find("./title"))
+                return title.lower().replace(" ", "_") if title else "unknown"
+            parent = parent.getparent() if hasattr(parent, "getparent") else None
+        return "unknown"
 
     def _extract_full_text(self) -> str:
         """Extract complete plain text of the paper"""
         text_parts = []
 
         # Add abstract
-        front = self.root.find('.//front')
+        front = self.root.find(".//front")
         if front is not None:
             abstract = self._parse_abstract(front)
             if abstract:
                 text_parts.append(abstract)
 
         # Add body text
-        body = self.root.find('.//body')
+        body = self.root.find(".//body")
         if body is not None:
             body_text = self._get_text(body)
             if body_text:
                 text_parts.append(body_text)
 
-        return '\n\n'.join(text_parts)
+        return "\n\n".join(text_parts)
 
     def _get_paragraph_text(self, elem: ET.Element) -> str:
         """Extract text from paragraph, handling inline elements"""
@@ -463,7 +497,7 @@ class JATSParser:
 
         for child in elem:
             # Skip certain elements
-            if child.tag in ['xref', 'sup', 'sub']:
+            if child.tag in ["xref", "sup", "sub"]:
                 text_parts.append(child.text or "")
             else:
                 text_parts.append(self._get_text(child))
@@ -471,7 +505,7 @@ class JATSParser:
             # Add tail text
             text_parts.append(child.tail or "")
 
-        return ' '.join(text_parts).strip()
+        return " ".join(text_parts).strip()
 
     def _get_text(self, elem: Optional[ET.Element]) -> str:
         """Recursively extract all text from an element"""
@@ -490,14 +524,15 @@ class JATSParser:
             if child.tail:
                 text_parts.append(child.tail)
 
-        return ' '.join(text_parts).strip()
+        return " ".join(text_parts).strip()
 
 
 def example_usage():
     """Example of how to use the parser"""
 
     # Parse a JATS XML file
-    parser = JATSParser('path/to/paper.xml')
+    path = "/home/wware/med-graph-rag/papers/raw/PMC3387216.xml"
+    parser = JATSParser(path)
     paper = parser.parse()
 
     # Access metadata
@@ -511,7 +546,7 @@ def example_usage():
     # Access chunks for embedding
     print(f"\nTotal chunks: {len(paper.chunks)}")
     for i, chunk in enumerate(paper.chunks[:3]):
-        print(f"\nChunk {i+1}:")
+        print(f"\nChunk {i + 1}:")
         print(f"  Section: {chunk.section}")
         print(f"  Type: {chunk.chunk_type}")
         print(f"  Text preview: {chunk.text[:100]}...")
@@ -526,5 +561,90 @@ def example_usage():
     print(f"\nTotal references: {len(paper.references)}")
 
 
-if __name__ == '__main__':
-    example_usage()
+### pytests ###
+# **XML Parsing**:
+# *   Provide sample JATS XML strings/files.
+# *   Verify extraction of metadata (Title, Authors, PMID, DOI).
+# *   Verify section splitting and paragraph extraction.
+# *   Test extraction of tables and citations.
+# **Edge Cases**:
+# *   Test with malformed XML.
+# *   Test with missing optional fields (e.g., no abstract, no keywords).
+
+
+def test_bmj_parsing():
+    with urllib.request.urlopen(
+        "https://jats.nlm.nih.gov/publishing/tag-library/1.2/FullArticleSamples/bmj_sample.txt"
+    ) as xml_text:
+        tf = tempfile.NamedTemporaryFile(delete=False, suffix=".xml")
+        tf.write(xml_text.read())
+        tf.close()
+    parser = JATSParser(tf.name)
+    paper = parser.parse()
+    assert paper.metadata.title.startswith(
+        "Evolving general practice consultation in Britain"
+    )
+    assert set(paper.metadata.authors) == {
+        "Freeman George K",
+        "Horder John P",
+        "Howie John G R",
+        "Wilson Andrew",
+        "Hill Alison P",
+        "Hungin A Pali",
+        "Shah Nayan C",
+    }
+    assert paper.metadata.publication_date == "2002-04-13"
+    assert paper.metadata.mesh_terms == []
+    assert paper.chunks[0].text.startswith("Longer consultations are associated")
+    assert paper.chunks[1].text.startswith("The systematic review consistently showed")
+    assert paper.tables == []
+    assert "Consultation time" in paper.references["B1"].citation_text
+    os.unlink(tf.name)
+
+
+def test_pnas_parsing():
+    with urllib.request.urlopen(
+        "https://jats.nlm.nih.gov/publishing/tag-library/1.2/FullArticleSamples/pnas_sample.txt"
+    ) as xml_text:
+        tf = tempfile.NamedTemporaryFile(delete=False, suffix=".xml")
+        tf.write(xml_text.read())
+        tf.close()
+    parser = JATSParser(tf.name)
+    paper = parser.parse()
+    assert paper.metadata.title.startswith("The coreceptor mutation CCR5")
+    print(paper.metadata.authors)
+    assert set(paper.metadata.authors) == {
+        "Sullivan Amy D.",
+        "Wigginton Janis",
+        "Kirschner Denise",
+    }
+    assert paper.metadata.publication_date == "2001-08-28"
+    assert paper.metadata.mesh_terms == []
+    assert paper.chunks[0].text.startswith("We explore the impact of a host genetic factor")
+    assert paper.chunks[1].text.startswith("Because we are most concerned with")
+    assert len(paper.tables) == 4
+    assert paper.tables[0].label == "Table 1"
+    assert paper.tables[0].caption == "Children's genotype"
+    assert paper.tables[0].content.startswith("Parents")
+    assert "Weiss" in paper.references["B1"].citation_text
+    assert "Hawkes" in paper.references["B1"].citation_text
+    os.unlink(tf.name)
+
+
+def test_xml_parsing():
+    location = Path(os.path.dirname(__file__) + "/../../papers/raw")
+    for dirpath, _, filenames in os.walk(location):
+        for filename in filenames:
+            if not filename.endswith(".xml"):
+                continue
+            path = Path(dirpath) / filename
+            parser = JATSParser(path)
+            paper = parser.parse()
+            # for right now, just make sure it doesn't crash
+            assert paper.metadata.title
+            assert paper.metadata.authors
+            assert paper.metadata.publication_date
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

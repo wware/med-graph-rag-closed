@@ -9,6 +9,11 @@ import json
 from typing import List
 import time
 
+import pytest
+from unittest.mock import Mock, patch, MagicMock
+import json
+from botocore.exceptions import ClientError
+
 
 class EmbeddingGenerator:
     """Generate embeddings using AWS Bedrock Titan Embeddings V2.
@@ -100,3 +105,178 @@ class EmbeddingGenerator:
                 print(f"Processed {i + batch_size}/{len(texts)} embeddings")
 
         return embeddings
+
+### pytest ###
+
+def test_embed_text_success():
+    """Test successful embedding generation for a single text"""
+    with patch('boto3.client') as mock_client:
+        # Mock the Bedrock response
+        mock_response = {
+            'body': MagicMock(read=lambda: json.dumps({
+                'embedding': [0.1] * 1024
+            }).encode())
+        }
+        mock_client.return_value.invoke_model.return_value = mock_response
+        
+        generator = EmbeddingGenerator()
+        result = generator.embed_text("Test text")
+        
+        assert len(result) == 1024
+        assert all(isinstance(x, float) for x in result)
+
+
+def test_embed_text_truncation():
+    """Test that long texts are truncated to 30k characters"""
+    with patch('boto3.client') as mock_client:
+        mock_response = {
+            'body': MagicMock(read=lambda: json.dumps({
+                'embedding': [0.1] * 1024
+            }).encode())
+        }
+        mock_client.return_value.invoke_model.return_value = mock_response
+        
+        generator = EmbeddingGenerator()
+        long_text = "a" * 50000
+        generator.embed_text(long_text)
+        
+        # Verify the text was truncated in the request
+        call_args = mock_client.return_value.invoke_model.call_args
+        body = json.loads(call_args.kwargs['body'])
+        assert len(body['inputText']) == 30000
+
+
+def test_embed_text_input_types():
+    """Test different input_type parameters"""
+    with patch('boto3.client') as mock_client:
+        mock_response = {
+            'body': MagicMock(read=lambda: json.dumps({
+                'embedding': [0.1] * 1024
+            }).encode())
+        }
+        mock_client.return_value.invoke_model.return_value = mock_response
+        
+        generator = EmbeddingGenerator()
+        
+        # Test search_document (default)
+        generator.embed_text("Test", input_type='search_document')
+        # Test search_query
+        generator.embed_text("Test", input_type='search_query')
+        
+        assert mock_client.return_value.invoke_model.call_count == 2
+
+
+def test_embed_text_error_handling():
+    """Test error handling when Bedrock call fails"""
+    with patch('boto3.client') as mock_client:
+        mock_client.return_value.invoke_model.side_effect = ClientError(
+            {'Error': {'Code': 'ServiceUnavailable', 'Message': 'Service error'}},
+            'invoke_model'
+        )
+        
+        generator = EmbeddingGenerator()
+        
+        with pytest.raises(ClientError):
+            generator.embed_text("Test text")
+
+
+def test_embed_batch_basic():
+    """Test batch embedding generation"""
+    with patch('boto3.client') as mock_client:
+        mock_response = {
+            'body': MagicMock(read=lambda: json.dumps({
+                'embedding': [0.1] * 1024
+            }).encode())
+        }
+        mock_client.return_value.invoke_model.return_value = mock_response
+        
+        generator = EmbeddingGenerator()
+        texts = ["Text 1", "Text 2", "Text 3"]
+        
+        with patch('time.sleep'):  # Skip actual sleep
+            results = generator.embed_batch(texts, batch_size=2, delay=0.1)
+        
+        assert len(results) == 3
+        assert all(len(emb) == 1024 for emb in results)
+
+
+def test_embed_batch_rate_limiting():
+    """Test that rate limiting delays are applied"""
+    with patch('boto3.client') as mock_client:
+        mock_response = {
+            'body': MagicMock(read=lambda: json.dumps({
+                'embedding': [0.1] * 1024
+            }).encode())
+        }
+        mock_client.return_value.invoke_model.return_value = mock_response
+        
+        generator = EmbeddingGenerator()
+        texts = ["Text " + str(i) for i in range(25)]
+        
+        with patch('time.sleep') as mock_sleep:
+            generator.embed_batch(texts, batch_size=10, delay=0.5)
+            
+            # Should sleep twice: after batch 1 (0-9) and batch 2 (10-19)
+            assert mock_sleep.call_count == 2
+            mock_sleep.assert_called_with(0.5)
+
+
+def test_embed_batch_empty_list():
+    """Test batch embedding with empty list"""
+    with patch('boto3.client'):
+        generator = EmbeddingGenerator()
+        results = generator.embed_batch([])
+        
+        assert results == []
+
+
+def test_embed_batch_progress_logging(capsys):
+    """Test that progress is logged for large batches"""
+    with patch('boto3.client') as mock_client:
+        mock_response = {
+            'body': MagicMock(read=lambda: json.dumps({
+                'embedding': [0.1] * 1024
+            }).encode())
+        }
+        mock_client.return_value.invoke_model.return_value = mock_response
+        
+        generator = EmbeddingGenerator()
+        texts = ["Text " + str(i) for i in range(150)]
+        
+        with patch('time.sleep'):
+            generator.embed_batch(texts, batch_size=10)
+        
+        captured = capsys.readouterr()
+        assert "Processed 100/150 embeddings" in captured.out
+
+
+def test_region_configuration():
+    """Test that region can be configured"""
+    with patch('boto3.client') as mock_client:
+        EmbeddingGenerator(region_name='us-west-2')
+        
+        mock_client.assert_called_once_with(
+            service_name='bedrock-runtime',
+            region_name='us-west-2'
+        )
+
+
+def test_model_id():
+    """Test that correct model ID is used"""
+    with patch('boto3.client') as mock_client:
+        mock_response = {
+            'body': MagicMock(read=lambda: json.dumps({
+                'embedding': [0.1] * 1024
+            }).encode())
+        }
+        mock_client.return_value.invoke_model.return_value = mock_response
+        
+        generator = EmbeddingGenerator()
+        generator.embed_text("Test")
+        
+        call_args = mock_client.return_value.invoke_model.call_args
+        assert call_args.kwargs['modelId'] == 'amazon.titan-embed-text-v2:0'
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])
