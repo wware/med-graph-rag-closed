@@ -1,3 +1,6 @@
+papers/
+pmc_papers/
+
 # Python
 __pycache__/
 *.py[cod]
