@@ -1,13 +1,20 @@
 """
 Test Queries Script
 
-Interactive tool for testing queries against the medical knowledge graph.
-Supports semantic search, keyword search, and hybrid search.
+This file contains tests for querying the medical knowledge graph.
+It can be run using pytest:
+
+    pytest src/scripts/test_queries.py
+
+To run with output display:
+
+    pytest -s src/scripts/test_queries.py
 """
 
-import argparse
+import json
 import sys
 from pathlib import Path
+import pytest
 
 # Add parent directory to path to import from src
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -51,13 +58,13 @@ def interactive_mode(client: MedicalPapersClient) -> None:
 
             # Execute search
             if search_type == 'semantic':
-                results = client.semantic_search(query, k=10)
+                results = client.search(query, k=10, search_type='vector')
                 print(f"\n=== Semantic Search Results for: '{query}' ===")
             elif search_type == 'keyword':
-                results = client.keyword_search(query, size=10)
+                results = client.search(query, k=10, search_type='keyword')
                 print(f"\n=== Keyword Search Results for: '{query}' ===")
             elif search_type == 'hybrid':
-                results = client.hybrid_search(query)
+                results = client.search(query, k=10, search_type='hybrid')
                 print(f"\n=== Hybrid Search Results for: '{query}' ===")
             else:
                 print(f"Unknown search type: {search_type}")
@@ -68,11 +75,10 @@ def interactive_mode(client: MedicalPapersClient) -> None:
                 print("No results found.")
             else:
                 for i, result in enumerate(results, 1):
-                    print(f"\n{i}. {result.get('title', 'Unknown Title')} (Score: {result.get('score', 0):.3f})")
-                    print(f"   PMC ID: {result.get('pmc_id', 'N/A')}")
-                    print(f"   Section: {result.get('section', 'N/A')}")
-                    chunk_text = result.get('chunk_text', '')
-                    print(f"   {chunk_text[:200]}...")
+                    print(f"\n{i}. {result.title} (Score: {result.score:.3f})")
+                    print(f"   PMC ID: {result.pmc_id}")
+                    print(f"   Section: {result.section}")
+                    print(f"   {result.chunk_text[:200]}...")
 
             print()
 
@@ -95,11 +101,11 @@ def run_query(client: MedicalPapersClient, query: str, search_type: str = 'hybri
     print(f"Running {search_type} search for: '{query}'")
 
     if search_type == 'semantic':
-        results = client.semantic_search(query, k=k)
+        results = client.search(query, k=k, search_type='vector')
     elif search_type == 'keyword':
-        results = client.keyword_search(query, size=k)
+        results = client.search(query, k=k, search_type='keyword')
     elif search_type == 'hybrid':
-        results = client.hybrid_search(query, k=k)
+        results = client.search(query, k=k, search_type='hybrid')
     else:
         print(f"Unknown search type: {search_type}")
         return
@@ -107,53 +113,77 @@ def run_query(client: MedicalPapersClient, query: str, search_type: str = 'hybri
     print(f"\nFound {len(results)} results:\n")
 
     for i, result in enumerate(results, 1):
-        print(f"{i}. {result.get('title', 'Unknown Title')} (Score: {result.get('score', 0):.3f})")
-        print(f"   PMC ID: {result.get('pmc_id', 'N/A')}")
-        print(f"   Section: {result.get('section', 'N/A')}")
-        chunk_text = result.get('chunk_text', '')
-        print(f"   {chunk_text[:200]}...")
+        # Result is a SearchResult object, not a dict
+        print(f"{i}. {result.title} (Score: {result.score:.3f})")
+        print(f"   PMC ID: {result.pmc_id}")
+        print(f"   Section: {result.section}")
+        print(f"   {result.chunk_text[:200]}...")
         print()
 
 
-def main() -> None:
-    """Main CLI interface."""
-    parser = argparse.ArgumentParser(description='Test queries against medical knowledge graph')
-    parser.add_argument('--opensearch-host', default='localhost',
-                       help='OpenSearch host (default: localhost)')
-    parser.add_argument('--opensearch-port', type=int, default=9200,
-                       help='OpenSearch port (default: 9200)')
-    parser.add_argument('--query', type=str,
-                       help='Query to run (if not interactive)')
-    parser.add_argument('--interactive', action='store_true',
-                       help='Run in interactive mode')
-    parser.add_argument('--search-type', choices=['semantic', 'keyword', 'hybrid'],
-                       default='hybrid', help='Type of search to perform')
-    parser.add_argument('--k', type=int, default=10,
-                       help='Number of results to return (default: 10)')
-
-    args = parser.parse_args()
-
-    # Initialize client
+def print_curl_command(client: MedicalPapersClient, body: dict) -> None:
+    """Helper to print equivalent curl command."""
     try:
-        client = MedicalPapersClient(
-            opensearch_host=args.opensearch_host,
-            opensearch_port=args.opensearch_port
-        )
-        print(f"Connected to OpenSearch at {args.opensearch_host}:{args.opensearch_port}")
+        # Try to get host/port from client connection
+        # This depends on the internals of opensearch-py
+        connection = client.client.transport.hosts[0]
+        host = connection.get('host', 'localhost')
+        port = connection.get('port', 9200)
+        scheme = 'https' if client.client.transport.use_ssl else 'http'
+    except Exception:
+        host = 'localhost'
+        port = 9200
+        scheme = 'http'
+
+    url = f"{scheme}://{host}:{port}/{client.index_name}/_search"
+
+    print("\n--- Equivalent CURL command ---")
+    print(f"curl -X POST {url} \\")
+    print("  -H 'Content-Type: application/json' \\")
+    print(f"  -d '{json.dumps(body, indent=2)}'")
+    print("-------------------------------\n")
+
+
+def test_queries():
+    """Test that queries can be executed against the OpenSearch instance."""
+    try:
+        client = MedicalPapersClient()
     except Exception as e:
-        print(f"Error connecting to OpenSearch: {e}")
-        sys.exit(1)
+        pytest.skip(f"Could not connect to OpenSearch: {e}")
 
-    # Run interactive or single query mode
-    if args.interactive:
-        interactive_mode(client)
-    elif args.query:
-        run_query(client, args.query, args.search_type, args.k)
-    else:
-        print("Please specify either --interactive or --query")
-        parser.print_help()
-        sys.exit(1)
+    # Test a simple keyword search
+    print("\nTesting keyword search...")
+    query = "cancer"
+    k = 1
 
+    # Generate and print curl command
+    try:
+        body = client._build_keyword_query(query, k)
+        print_curl_command(client, body)
+    except Exception as e:
+        print(f"Could not generate curl command: {e}")
 
-if __name__ == '__main__':
-    main()
+    results = client.search(query, k=k, search_type='keyword')
+    assert isinstance(results, list)
+
+    # Test a hybrid search
+    print("\nTesting hybrid search...")
+    query = "treatment"
+
+    try:
+        # For hybrid, we need an embedding.
+        # If we can't generate one (no Bedrock), we might skip the curl print or use a dummy one.
+        if client.bedrock:
+            embedding = client._generate_query_embedding(query)
+            body = client._build_hybrid_query(query, embedding, k, 0.5)
+            # Truncate embedding for display to avoid spamming console
+            # We'll just print it as is, user can handle the output size
+            print_curl_command(client, body)
+        else:
+            print("(Skipping hybrid curl command generation - Bedrock not configured)")
+
+        results = client.search(query, k=k, search_type='hybrid')
+        assert isinstance(results, list)
+    except RuntimeError as e:
+        # This might happen if Bedrock is not configured
+        print(f"Skipping hybrid search test: {e}")

@@ -150,7 +150,7 @@ uvx pubmed-graph-rag
 
 ## Original Technical Architecture Discussion (Pre-MCP Pivot)
 
-*The conversation below explores the technical implementation of the ingestion pipeline, graph schema, and query processing. All of this infrastructure remains valid and necessary - we're just changing the interface layer from web app to MCP server.*  
+*The conversation below explores the technical implementation of the ingestion pipeline, graph schema, and query processing. All of this infrastructure remains valid and necessary - we're just changing the interface layer from web app to MCP server.*
 
 ## Prompt:
 11/27/2025, 4:27:33 AM
@@ -644,7 +644,7 @@ response = comprehend.detect_entities_v2(
 # Returns structured entities like:
 # {
 #   "Text": "BRCA1 mutation",
-#   "Category": "MEDICAL_CONDITION", 
+#   "Category": "MEDICAL_CONDITION",
 #   "Type": "DX_NAME",
 #   "Score": 0.98,
 #   "Traits": []
@@ -807,15 +807,15 @@ Can you give me a concise phrase to express the pivot to include clinical practi
 11/27/2025, 6:08:46 AM
 
 **The pivot:**
-"From research discovery tool to clinical decision support" 
+"From research discovery tool to clinical decision support"
 
-or 
+or
 
 "From literature search to evidence-based clinical guidance"
 
 **Scope impact:**
 
-**Broader:** 
+**Broader:**
 - User base expands from researchers to practicing physicians (much larger market)
 - Query types become more practical/immediate (diagnosis, treatment) vs. exploratory
 - Response format shifts from "here are relevant papers" to "here's what evidence suggests, with citations"
@@ -932,10 +932,10 @@ Then scale to 50K, then full corpus.
 **Ingestion pipeline sketch:**
 
 ```
-PubMed/PMC → S3 bucket → Lambda trigger → 
-  Textract (PDF) → Structure extraction → 
-  Chunking → Titan embeddings → 
-  Comprehend Medical (entities) → 
+PubMed/PMC → S3 bucket → Lambda trigger →
+  Textract (PDF) → Structure extraction →
+  Chunking → Titan embeddings →
+  Comprehend Medical (entities) →
   OpenSearch indexing
 ```
 
@@ -946,7 +946,7 @@ Does this give you enough to start building? Which piece do you want to tackle f
 ## Prompt:
 11/27/2025, 11:54:16 AM
 
-> File: 
+> File:
 
 AWS Q chatbot talks about Textract
 
@@ -1433,7 +1433,7 @@ You're absolutely right - the knowledge graph is where you go from "fancy search
 - No cross-paper reasoning
 
 **With it:**
-- "What's the relationship between BRCA1 mutations and treatment response?" 
+- "What's the relationship between BRCA1 mutations and treatment response?"
 - System can traverse: Gene → Mutation → Disease → Treatment → Outcome
 - Finds contradictions: "Paper A says X improves outcomes, Paper B found no effect"
 - Tracks provenance: Which papers support which claims
@@ -1495,7 +1495,7 @@ I've created a comprehensive schema design. Here are the key points:
    - `confidence` - calculated from evidence strength
 
 3. **Built for clinical queries:**
-   - "What treats X?" 
+   - "What treats X?"
    - "What are risks of Y?"
    - "Are there contradictions about Z?"
 
@@ -1662,7 +1662,7 @@ Your question: What drugs treat breast cancer?
 ✓ Query generated successfully!
 
 Explanation:
-I interpreted your question as asking for drugs that have a TREATS 
+I interpreted your question as asking for drugs that have a TREATS
 relationship with Breast Cancer, ordered by confidence.
 
 JSON Query:
@@ -1699,7 +1699,7 @@ result = generator.generate_query(
 if not result['error']:
     query = result['query']  # Validated GraphQuery object
     cypher = result['cypher']  # Ready to execute
-    
+
     # Execute on your graph database
     results = neo4j_session.run(cypher)
 ```
@@ -1707,7 +1707,7 @@ if not result['error']:
 **The complete workflow:**
 
 ```
-User question → LLM with prompt → JSON query → 
+User question → LLM with prompt → JSON query →
 Pydantic validation → Cypher translation → Neo4j execution → Results
 ```
 
@@ -1755,7 +1755,7 @@ No, you're not missing anything - that's a known limitation of the mobile app. A
 **What I've created so far that you can't fully see on mobile:**
 
 1. `jats_parser.py` - Parses medical paper XML files
-2. `embedding_indexing_pipeline.py` - Creates embeddings and indexes to OpenSearch  
+2. `embedding_indexing_pipeline.py` - Creates embeddings and indexes to OpenSearch
 3. `pmc_fetcher.py` - Downloads papers from PubMed Central
 4. `medical_papers_client.py` - Client library for querying from your laptop
 5. `knowledge_graph_schema.md` - Schema design document
@@ -1800,7 +1800,7 @@ Perfect! Now you have:
 
 **Core AWS Services:**
 - OpenSearch (vector search)
-- Neptune (graph database)  
+- Neptune (graph database)
 - Bedrock (embeddings + LLM)
 - ECS Fargate (containers)
 - Lambda (event-driven)

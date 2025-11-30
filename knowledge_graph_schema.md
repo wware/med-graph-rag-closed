@@ -360,7 +360,7 @@ Medical knowledge evolves. Track this with:
 Drug -[TREATS {valid_from: "2015", valid_to: "2020"}]-> Disease
   # Was considered treatment from 2015-2020
 
-Drug -[TREATS {valid_from: "2020", valid_to: null}]-> Disease  
+Drug -[TREATS {valid_from: "2020", valid_to: null}]-> Disease
   # New understanding starting 2020
 ```
 
@@ -456,7 +456,7 @@ Drug -[TREATS {valid_from: "2020", valid_to: null}]-> Disease
 
 2. **Entity linking pipeline:**
    ```
-   Extracted text → NER → Candidate entities → 
+   Extracted text → NER → Candidate entities →
    Entity linking → Canonical ID → Graph node
    ```
 
