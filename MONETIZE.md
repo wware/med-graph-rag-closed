@@ -1,9 +1,76 @@
 # Monetizing a medical research graph RAG startup
 
-**Created:** 11/27/2025 2:39:44  
-**Updated:** 11/27/2025 11:37:40  
-**Exported:** 11/28/2025 8:50:48  
-**Link:** [https://claude.ai/chat/e83b43df-f34a-49bf-aed5-7497811be864](https://claude.ai/chat/e83b43df-f34a-49bf-aed5-7497811be864)  
+**Created:** 11/27/2025 2:39:44
+**Updated:** 11/29/2025 13:16:34 (MCP Pivot)
+**Exported:** 11/28/2025 8:50:48
+**Link:** [https://claude.ai/chat/e83b43df-f34a-49bf-aed5-7497811be864](https://claude.ai/chat/e83b43df-f34a-49bf-aed5-7497811be864)
+
+---
+
+## 🔄 STRATEGIC PIVOT UPDATE (11/29/2025 1:16 PM)
+
+**From:** Standalone web app for doctors
+**To:** MCP server infrastructure for AI platforms
+
+### The New Model
+
+**Transform from standalone web app → MCP server**
+- Expose medical paper search/knowledge graph as tools that MCP-capable AI assistants (Claude, and others in the ecosystem) can call
+- Instead of users going to a web UI, they ask their AI assistant questions and the assistant uses your MCP server as a data source
+- Turn competitors (Glass Health, UpToDate, OpenEvidence) into customers
+
+### Core Differentiators (Unchanged - These Are Our Value)
+
+1. **Complex multi-hop reasoning across papers**
+2. **Surfacing contradictory evidence**
+3. **Following diagnostic chains** (symptom → rare condition → cited treatment studies)
+4. **Provenance at the paragraph level**
+
+### Revised Revenue Models
+
+**Option A - B2B Platform Infrastructure:**
+- Sell to Glass Health, UpToDate, OpenEvidence as backend infrastructure
+- They pay per query or flat monthly fee
+- You become "Stripe for medical literature reasoning"
+- Easier sales: One customer (platform) vs. thousands (doctors)
+- Estimated: $5K-50K/month per platform partner
+
+**Option B - Direct to Doctors (MCP Marketplace):**
+- Doctors install your MCP server via `uvx pubmed-graph-rag`
+- Works with any MCP-compatible tool (Claude Desktop, future tools)
+- Subscription: $50-100/month per doctor
+- Harder sales but higher margins
+
+**Option C - Hybrid (Recommended):**
+- Free tier: Limited queries for individual doctors
+- Platform deals: High-volume access for Glass Health, etc.
+- Enterprise: Hospital systems get on-premise deployment
+
+### Competitive Advantage vs. Existing MCP Servers
+
+**10+ basic PubMed MCP servers exist** - but they only do keyword search and return abstracts.
+
+**We're the ONLY medical graph RAG MCP server:**
+- Multi-hop reasoning through citation chains
+- Automatic contradiction detection
+- Diagnostic chain tracing
+- Deep provenance (paragraph-level citations)
+
+### Technical Pivot Impact
+
+**Minimal changes required:**
+- Keep all existing ingestion, OpenSearch, embeddings infrastructure
+- Add thin MCP protocol wrapper around existing backend
+- Expose 3-4 tools: `pubmed_graph_search`, `diagnostic_chain_trace`, `evidence_contradiction_check`
+- Package for uvx distribution
+
+**Development timeline:** 1-2 weeks to add MCP wrapper to existing codebase
+
+---
+
+## Original Monetization Discussion (Pre-MCP Pivot)
+
+*The conversation below explores the original standalone web app model. Still valuable for understanding market dynamics and customer needs, but the MCP pivot above is the current strategic direction.*  
 
 ## Prompt:
 11/27/2025, 2:39:46 AM

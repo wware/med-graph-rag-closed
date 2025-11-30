@@ -1,9 +1,156 @@
-# Medical research AI service monetization strategy
+# Medical research AI service technical architecture
 
-**Created:** 11/27/2025 4:27:32  
-**Updated:** 11/28/2025 8:16:04  
-**Exported:** 11/28/2025 8:49:34  
-**Link:** [https://claude.ai/chat/444a87c0-3699-417e-939e-9fe9d4800d7f](https://claude.ai/chat/444a87c0-3699-417e-939e-9fe9d4800d7f)  
+**Created:** 11/27/2025 4:27:32
+**Updated:** 11/29/2025 13:16:34 (MCP Pivot)
+**Exported:** 11/28/2025 8:49:34
+**Link:** [https://claude.ai/chat/444a87c0-3699-417e-939e-9fe9d4800d7f](https://claude.ai/chat/444a87c0-3699-417e-939e-9fe9d4800d7f)
+
+---
+
+## 🔄 ARCHITECTURAL PIVOT UPDATE (11/29/2025 1:16 PM)
+
+**From:** Standalone web application with FastAPI + web UI
+**To:** MCP server with stdio transport + existing backend
+
+### Architecture Changes
+
+**What STAYS THE SAME (80% of the work):**
+- ✅ JATS XML parsing and ingestion pipeline
+- ✅ OpenSearch for vector + keyword search
+- ✅ AWS Bedrock Titan embeddings
+- ✅ Knowledge graph schema and entity extraction
+- ✅ Multi-hop reasoning, contradiction detection, provenance tracking
+- ✅ All backend infrastructure (S3, Lambda, Docker)
+
+**What CHANGES (20% - thin wrapper):**
+- ❌ Remove FastAPI web endpoints
+- ❌ Remove web UI (src/api/static/index.html, src/web/static/index.html)
+- ❌ Remove WEB_UI_QUICKSTART.md
+- ✅ Add MCP server wrapper using stdio transport
+- ✅ Package for uvx distribution
+- ✅ Define tool schemas
+
+### MCP Server Tool Definitions
+
+The MCP server exposes these tools to AI assistants:
+
+**1. `pubmed_graph_search`**
+```python
+{
+  "name": "pubmed_graph_search",
+  "description": "Multi-hop reasoning across PubMed papers with provenance",
+  "inputSchema": {
+    "query": str,
+    "max_hops": int (default 3),
+    "include_contradictions": bool (default True),
+    "evidence_threshold": float (default 0.7)
+  }
+}
+```
+
+**2. `diagnostic_chain_trace`**
+```python
+{
+  "name": "diagnostic_chain_trace",
+  "description": "Follow symptom → diagnosis → treatment chains through literature",
+  "inputSchema": {
+    "initial_finding": str,
+    "depth": int (default 3),
+    "filter_by_recency": bool (default True)
+  }
+}
+```
+
+**3. `evidence_contradiction_check`**
+```python
+{
+  "name": "evidence_contradiction_check",
+  "description": "Find conflicting evidence on a medical claim",
+  "inputSchema": {
+    "claim": str,
+    "time_window": str (default "last_5_years"),
+    "min_studies": int (default 2)
+  }
+}
+```
+
+### Implementation Approach
+
+**MCP Server Wrapper (~200 lines of code):**
+```python
+# mcp_server.py
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp import types
+
+# Import existing backend functions
+from src.client.medical_papers_client import MedicalPapersClient
+from src.ingestion.pipeline import multi_hop_search, find_contradictions
+
+app = Server("pubmed-graph-rag")
+
+@app.list_tools()
+async def list_tools() -> list[types.Tool]:
+    return [tool definitions above]
+
+@app.call_tool()
+async def call_tool(name: str, arguments: dict):
+    # Route to existing backend functions
+    if name == "pubmed_graph_search":
+        results = await search_papers(**arguments)
+        return format_results(results)
+    # ... etc
+```
+
+**Packaging for Distribution:**
+```toml
+# pyproject.toml
+[project.scripts]
+pubmed-graph-rag = "med_graph_rag.mcp_server:main"
+
+[project.optional-dependencies]
+mcp = ["mcp>=0.9.0"]
+```
+
+**User Installation:**
+```bash
+# Doctors install via uvx
+uvx pubmed-graph-rag
+
+# Configure in Claude Desktop
+{
+  "mcpServers": {
+    "pubmed-graph-rag": {
+      "command": "uvx",
+      "args": ["pubmed-graph-rag"]
+    }
+  }
+}
+```
+
+### Development Timeline
+
+- **Week 1:** Add MCP wrapper, test locally
+- **Week 2:** Package for uvx, deploy to PyPI
+- **Week 3:** Demo to Glass Health, validate with doctors
+- **Week 4+:** Iterate based on feedback
+
+### Competitive Differentiation
+
+**10+ basic PubMed MCP servers exist** - they only do keyword search.
+
+**We're the ONLY one with:**
+- Graph RAG combining vector + graph + keyword search
+- Multi-hop reasoning through citations
+- Automatic contradiction detection
+- Paragraph-level provenance
+- Diagnostic chain following
+
+---
+
+## Original Technical Architecture Discussion (Pre-MCP Pivot)
+
+*The conversation below explores the technical implementation of the ingestion pipeline, graph schema, and query processing. All of this infrastructure remains valid and necessary - we're just changing the interface layer from web app to MCP server.*  
 
 ## Prompt:
 11/27/2025, 4:27:33 AM
