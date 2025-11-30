@@ -1,309 +1,309 @@
-# Business Strategy & Monetization
+# Business Strategy & Go-to-Market
 
-## Executive Summary
+## Why I'm Building This
 
-Medical AI assistants are here and doctors use them daily. UpToDate has 3M+ clinician users. Glass Health (YC W21) is growing fast. Over 10 basic PubMed search tools exist as MCP servers.
+Someone close to me spent **18 months getting diagnosed** with an autoimmune condition. Her doctors knew something was wrong, but her symptoms didn't fit textbook presentations. Each specialist searched different databases, read different papers. The connections were there in the literature—scattered across dozens of studies no single doctor had time to read.
 
-**The gap:** None of them do multi-hop reasoning across papers, surface contradictory evidence automatically, or trace diagnostic chains through literature.
+I'm a **30-year software engineer** who just lost my job. I have **12 weeks of savings** to validate this idea before I need income again. That constraint is forcing real validation, not endless planning.
 
-**Our strategy:** Build the best medical literature reasoning engine as MCP server infrastructure. Sell to platforms (Glass Health, UpToDate) as backend, while also enabling direct-to-doctor subscriptions.
+**I'm building this whether investors fund it or not.** With capital, I move faster. Without it, I bootstrap with consulting income and slower iteration.
 
-**The market timing:** MCP protocol just launched in 2024. We're first-mover on medical graph RAG as MCP infrastructure.
+## What's Actually Built (Not Just Planned)
 
-## The Value Proposition
+**Working now:**
+- JATS XML parser for PubMed Central (processes structured medical papers)
+- OpenSearch integration with vector + keyword search
+- AWS Bedrock embeddings (Titan V2)
+- Entity extraction pipeline
+- Python client library
+- Docker development environment
+- Local testing on 100+ papers
 
-We solve a real clinical problem: connecting evidence scattered across multiple papers for complex diagnoses.
+**Not built yet:**
+- MCP server wrapper (~200 lines, 1-2 weeks)
+- Multi-hop graph traversal (algorithms designed, not implemented)
+- Contradiction detection (proof of concept only)
+- Production deployment
 
-**What existing tools do:**
-- Find individual papers by keyword
-- Return abstracts and citations
-- Provide clinical summaries from curated databases
+**My 12-week constraint:** Validate one revenue channel or admit this doesn't work and get a job.
 
-**What they can't do (our differentiators):**
-1. **Multi-hop reasoning** - Connect Gene X → Protein Y → Pathway Z → Drug target across 4 different studies
-2. **Automatic contradiction detection** - "Paper A (n=500, 2023) shows benefit BUT Paper B (n=1200, 2024) found no effect"
-3. **Diagnostic chain following** - Trace symptom → rare condition → cited treatment studies
-4. **Paragraph-level provenance** - "PMC123456, Results section, paragraph 4" (not just "according to this paper")
+## What I Need to Learn (Customer Discovery Gaps)
 
-**The customer pain:** A doctor spent hours doing diagnostic detective work to get an accurate diagnosis. Our tool makes that systematic and fast, not luck-dependent.
+**Honest assessment - I haven't validated product-market fit yet:**
 
-## Revenue Models
+✅ **What I know:**
+- Technical feasibility: The backend works on test data
+- Personal pain point: I watched this problem nearly kill someone
+- Ecosystem gap: 10+ basic PubMed MCP servers exist, none do graph RAG
 
-We have three paths to revenue, optimized for different customer segments:
+❌ **What I don't know (critical gaps):**
+- Will doctors actually pay $50-100/month for this?
+- Would Glass Health pay $5K/month or just build it themselves?
+- Is pharma research a better wedge than clinical use?
+- What's the real sales cycle for platform partnerships?
 
-### Option A: B2B Platform Infrastructure ($5K-50K/month per partner)
+**Customer conversations so far:** Zero. This is the first thing I need to fix.
 
-**Target customers:** Glass Health, UpToDate, OpenEvidence, Medwise, iatroX
+**My validation plan (next 4 weeks):**
+1. Talk to 20 physicians (starting with my partner's doctor who solved the case)
+2. Reach out to Glass Health founders via YC network
+3. Contact 5 pharma companies doing systematic reviews
+4. Ask: "Would you pay for this? What's missing? What would make it a must-have?"
 
-**Value proposition:** "We're Stripe for medical literature reasoning - you integrate once, we handle the hard backend"
+## Three Possible Revenue Channels (Picking ONE)
 
-**Pricing models:**
-- **Per-query:** $0.10-0.50 per query (volume discounts)
-- **Flat monthly:** $5K-20K for unlimited queries
-- **Revenue share:** 20-30% of their subscription revenue attributed to our features
+I'm not "layering all three" - that's a recipe for failure. I need to pick the channel with shortest validation cycle.
 
-**Sales strategy:**
-- Demo to Glass Health first (YC company, likely most agile)
-- Show: "Your users ask X, we return multi-hop answer with contradictions flagged"
-- Pitch: "Don't build this yourself - it took us 6 months and $50K"
+### Option A: Platform Partnerships (Glass Health, UpToDate)
 
-**Why platforms will buy:**
+**The pitch:** "We're infrastructure. You integrate once via MCP, we handle the hard backend."
+
+**Why they might buy:**
 - Differentiation vs competitors (they all have similar keyword search)
-- Faster than building in-house
+- Faster than building in-house (we have 6 months head start)
 - We handle PubMed ingestion, updates, infrastructure
-- Integration is just MCP protocol (standard, minimal dev work)
 
-**Deal size estimates:**
-- Glass Health: $10-20K/month (early adopter, smaller user base)
-- UpToDate: $50K+/month (enterprise, millions of users)
-- 3-5 platform deals = $100-200K/month ARR
+**Why they might NOT buy:**
+- Glass Health is 3 years old, well-funded, can build this themselves
+- UpToDate has 30 years of moat, why do they need us?
+- Technical integration risk (even "just MCP" needs trust)
 
-### Option B: Direct-to-Doctor MCP Marketplace ($50-100/month per doctor)
+**Sales cycle estimate:** 6-9 months (demos, pilots, legal, integration)
 
-**Target customers:** Individual physicians and small practices
+**Validation test (4 weeks):** Get Glass Health to take a demo call. If they say "interesting but not now," this channel is dead.
 
-**Distribution:** MCP marketplace (when it exists), Claude desktop app store, direct sales
+### Option B: Direct to Doctors (MCP Marketplace)
 
-**Value proposition:** "Works with any AI assistant you already use (Claude, future tools)"
+**The pitch:** "Install once, works with any AI assistant you use."
 
-**Installation:** One command (`uvx pubmed-graph-rag`), works immediately
-
-**Pricing tiers:**
-- **Free:** 10 queries/month (freemium funnel)
-- **Professional:** $50/month, 500 queries/month
-- **Practice:** $200/month, unlimited queries, 5 users
-
-**Why doctors will pay:**
+**Why they might buy:**
 - Already paying for UpToDate ($500-1000/year)
-- Our tool augments (not replaces) existing subscriptions
-- Solves real pain: complex diagnostic cases
-- No switching costs (integrates with their existing AI assistant)
+- Solves real pain (complex diagnostic cases)
+- No switching costs
 
-**Challenge:** Direct doctor sales are slow (not their budget, institutional purchasing)
+**Why they might NOT buy:**
+- Doctors don't control budgets (institutions do)
+- "Another subscription" fatigue
+- Most cases aren't complex enough to justify cost
 
-**Deal size estimates:**
-- Year 1: 100 doctors @ $50/month = $5K/month ($60K ARR)
-- Year 2: 1,000 doctors @ $50/month = $50K/month ($600K ARR)
-- Year 3: 10,000 doctors @ $50/month = $500K/month ($6M ARR)
+**Validation test (4 weeks):** Get 10 doctors to try beta free. See if they'd pay $50/month after 30 days.
 
-### Option C: Hybrid Model (Recommended)
+### Option C: Pharma Research Teams (Contract Revenue)
 
-**Layer the revenue streams:**
+**The pitch:** "We automate systematic literature reviews that cost you $50K+ per drug."
 
-1. **Free tier** - 10 queries/month for individual doctors
-   - Builds user base and word-of-mouth
-   - Demonstrates value before asking for payment
-   - Freemium conversion funnel
+**Why they might buy:**
+- Clear ROI (manual systematic reviews are expensive)
+- Budget exists (R&D departments spend millions)
+- Fewer customers needed ($100K contracts vs $50/month subscriptions)
 
-2. **Platform deals** - $5K-50K/month each
-   - Primary revenue driver in Year 1-2
-   - Faster sales cycle than enterprise
-   - Validates product-market fit
+**Why they might NOT buy:**
+- They already have solutions (Elsevier, Ovid)
+- Regulatory requirements for data provenance
+- Long sales cycles (12-18 months)
 
-3. **Direct subscriptions** - $50-100/month per doctor
-   - Supplements platform revenue
-   - Direct customer relationships and feedback
-   - Higher margins than platform revenue share
+**Validation test (8 weeks):** Talk to research teams at 5 pharma companies. Ask what they currently pay for systematic reviews.
 
-4. **Enterprise** - Custom pricing for hospital systems
-   - Year 2-3 opportunity
-   - On-premise deployment option
-   - $100K+ annual contracts
+## My Pick: Option B (Direct to Doctors) - Here's Why
 
-**Why hybrid works:**
-- Multiple revenue streams reduce risk
-- Platform deals fund growth while direct builds user base
-- Enterprise opportunities emerge after platform validation
+**Shortest validation cycle:**
+- Can test in 4 weeks with 10 beta users
+- If it doesn't work, pivot to pharma or platforms
+- No long sales cycles blocking feedback
 
-## Market Opportunity
+**Leverages what I have:**
+- Working backend
+- MCP wrapper is 1-2 weeks of work
+- Can ship beta in 3 weeks
 
-**Total Addressable Market (TAM):**
-- 1M+ physicians in US
-- 3M+ physicians globally using clinical decision support
-- UpToDate alone: $1B+ revenue (Wolters Kluwer doesn't break out separately)
+**Clear fail-fast criteria:**
+- If 0 out of 10 doctors would pay → Kill it or pivot
+- If 5+ out of 10 would pay → Double down
+- If 2-4 out of 10 would pay → Refine positioning
 
-**Serviceable Addressable Market (SAM):**
-- Physicians handling complex diagnostic cases: ~300K in US
-- Researchers using medical literature: ~200K globally
-- Price point: $50-100/month individual, $5K-50K/month platforms
+**My 12-week plan:**
+- Weeks 1-2: Build MCP server wrapper
+- Weeks 3-4: Get 10 beta doctors (starting with my partner's doctor)
+- Weeks 5-8: Iterate based on feedback
+- Weeks 9-12: Either (a) converting beta to paid, or (b) pivoting to platform/pharma
 
-**Serviceable Obtainable Market (SOM - Year 3):**
-- Platform deals: 5 platforms @ $20K/month avg = $1.2M ARR
-- Direct subscriptions: 10,000 doctors @ $50/month = $6M ARR
-- **Total SOM: $7.2M ARR by Year 3**
+## Technical Moat: Why Can't Others Just Build This?
 
-## Competitive Positioning
+**Honest answer:** They can. This isn't a 10-year moat.
 
-### vs. Basic PubMed MCP Servers (10+ exist)
-- **They have:** Keyword search, abstract retrieval
-- **We have:** Multi-hop reasoning, contradiction detection, diagnostic chains
-- **Our advantage:** Only medical graph RAG MCP server
+**But we have 6-12 month head start because:**
 
-### vs. Clinical Platforms (Glass Health, UpToDate, OpenEvidence)
-- **They have:** Large user bases, established brands, clinical summaries
-- **We have:** Deep literature reasoning they can buy as infrastructure
-- **Our strategy:** Partner, don't compete - we're their backend
+1. **JATS XML parsing is harder than it looks**
+   - PubMed Central has inconsistent XML schemas
+   - Entity extraction from medical text is brittle
+   - We've debugged this for 100+ papers already
 
-### vs. Building In-House
-- **Their challenge:** 6+ months development, ongoing maintenance
-- **Our advantage:** Ready now, we handle updates and infrastructure
-- **Our pitch:** "Buy vs build - integrate in 1 week vs build in 6 months"
+2. **Graph RAG + medical NLP combination**
+   - Most teams do one or the other, not both
+   - Getting OpenSearch + graph traversal + entity linking to work together took 3 months
+   - Medical terminology normalization (UMLS, MeSH, RxNorm) is tedious
 
-### vs. Traditional PubMed Search
-- **They have:** Free, comprehensive, doctors already use it
-- **We have:** Automated reasoning, contradiction detection, saved time
-- **Our positioning:** Augment, not replace - we make PubMed smarter
+3. **First-mover in MCP ecosystem**
+   - MCP just launched (2024)
+   - We're first medical graph RAG MCP server
+   - Network effects if we get early adopters
 
-## Go-to-Market Strategy
+**What happens when Glass Health builds this?** They will, eventually. Our advantage is we're focused on this ONE problem. They're building a full clinical platform. We can be better at deep literature reasoning because it's all we do.
 
-### Phase 1: Platform Partnership (Months 1-6)
-**Goal:** Land first 2-3 platform deals
+**Defensibility comes from:**
+- Corpus size (more papers ingested = better results)
+- User feedback loops (what queries work/fail)
+- Platform partnerships (if we integrate with Glass Health, they're less likely to compete)
 
-**Tactics:**
-1. **Demo video** - 3 minutes showing complex query → multi-hop answer
-2. **Reach Glass Health** - YC connection, show to founders directly
-3. **UpToDate pilot** - Harder to reach but biggest potential
-4. **OpenEvidence** - Newer player, may be most receptive
+**This is a feature, not a company - unless** we execute flawlessly on ONE channel and build distribution faster than platforms can copy us.
 
-**Success metric:** 2 platform deals signed by Month 6
+## Realistic Validation Milestones (Not Hockey Stick Projections)
 
-### Phase 2: Direct Beta (Months 3-9)
-**Goal:** 100 doctor users providing feedback
+### Months 1-3: Can We Get 10 Paying Customers?
 
-**Tactics:**
-1. **Post in medical AI communities** - Twitter, Reddit, Slack groups
-2. **Free beta** - No payment required, gather testimonials
-3. **Partner's doctor** - Start with your PCP who understands the problem
-4. **Iterate based on feedback** - Which queries matter most?
+**Goal:** Validate doctors will pay
 
-**Success metric:** 100 active users, 10 strong testimonials
+**Spend:** $0 (living on savings, AWS free tier for testing)
 
-### Phase 3: Scale (Months 9-18)
-**Goal:** $500K ARR
+**Milestones:**
+- Ship MCP server wrapper (week 2)
+- 10 beta doctors using it (week 4)
+- 5+ say they'd pay $50/month (week 8)
+- Convert 5 to paid pilot (week 12)
 
-**Tactics:**
-1. **Platform expansion** - 3-5 deals at $10-30K/month each
-2. **Paid subscriptions** - Convert beta users, acquire new
-3. **Content marketing** - Case studies, blog posts, medical conferences
-4. **Enterprise pilots** - 1-2 hospital system trials
+**Success criteria:** $250/month MRR by week 12
+**Failure criteria:** <2 doctors willing to pay
 
-**Success metric:** $500K ARR, path to $1M visible
+**If success:** Raise $150K to hire sales-focused co-founder, scale to 100 doctors
+**If failure:** Pivot to pharma contracts or get a job
 
-## Financial Projections (3-Year)
+### Months 4-6: Can We Scale to $2K MRR?
 
-### Revenue Forecast
+**Assuming Month 3 success (5 paying doctors):**
 
-**Year 1:**
-- Platform deals: 2 @ $10K/month avg = $240K
-- Direct subscriptions: 100 @ $50/month = $60K
-- **Total Y1: $300K**
+**Goal:** 40 paying doctors @ $50/month = $2K MRR
 
-**Year 2:**
-- Platform deals: 5 @ $20K/month avg = $1.2M
-- Direct subscriptions: 1,000 @ $50/month = $600K
-- Enterprise: 1 @ $100K/year = $100K
-- **Total Y2: $1.9M**
+**Spend:** $5K (AWS costs for production deployment)
 
-**Year 3:**
-- Platform deals: 8 @ $25K/month avg = $2.4M
-- Direct subscriptions: 5,000 @ $50/month = $3M
-- Enterprise: 3 @ $150K/year avg = $450K
-- **Total Y3: $5.85M**
+**Milestones:**
+- Deploy to production AWS (month 4)
+- Launch on MCP marketplace when available (month 5)
+- Content marketing (case studies from beta doctors)
+- Referrals from existing users
 
-### Cost Structure
+**Success criteria:** $2K MRR + <20% monthly churn
+**Failure criteria:** High churn (>30%) or no organic growth
 
-**Fixed costs (annual):**
-- Founders: $0 (sweat equity) → $300K (Y2+)
-- Engineering: $200K (1 hire Y1) → $600K (3 hires Y2) → $1M (5 hires Y3)
-- Sales/BD: $150K (1 hire Y2) → $450K (3 hires Y3)
-- AWS infrastructure: $50K → $150K → $300K
+### Months 7-12: Can We Get to $10K MRR?
 
-**Variable costs:**
-- AWS Bedrock API: ~10% of revenue
-- Support: ~5% of revenue
+**Assuming Month 6 success ($2K MRR):**
 
-**Y1 expenses:** ~$300K (need funding or profitable side projects)
-**Y2 expenses:** ~$1.2M
-**Y3 expenses:** ~$2M
+**Goal:** 200 paying doctors @ $50/month = $10K MRR
 
-### Path to Profitability
+**At this point, consider:**
+- Raising seed round ($300-500K) to hire
+- Platform partnership (use traction to negotiate)
+- Institutional sales (sell to hospital systems)
 
-- **Y1:** Need $300K funding or founders working for equity
-- **Y2:** Revenue $1.9M, Expenses $1.2M = $700K profit
-- **Y3:** Revenue $5.85M, Expenses $2M = $3.85M profit
+**But only if organic growth + low churn prove product-market fit**
 
-**Break-even:** Month 18 (assumes Y1 funding secured)
+## What I'm Actually Asking For
 
-## Investment Ask
+### From Investors (If Interested)
 
-### For Investors
+**NOT asking for $500K seed round yet.** I haven't validated anything.
 
-**Raising:** $500K seed round
+**Asking for angel round: $50-100K**
 
 **Use of funds:**
-- 12 months runway for 2 founders
-- 1 senior engineer hire
-- AWS infrastructure costs
-- Platform demo development and sales
+- 6 months runway for me (covers savings gap)
+- AWS production costs ($5-10K)
+- If validation works, hire part-time BD/sales help
 
 **Milestones by end of runway:**
-- 3-5 platform partnership deals
-- 1,000+ doctor users
-- $500K ARR
-- Path to Series A ($2M at $1.5M ARR)
+- 50+ paying doctors at $50/month = $2.5K MRR
+- <20% monthly churn
+- Clear path to $10K MRR
 
-**Exit opportunities:**
-- Acquisition by UpToDate/Wolters Kluwer ($20-50M)
-- Acquisition by Glass Health or similar ($10-30M)
-- Standalone growth to $10M+ ARR, Series B+
+**What you get:**
+- If it works: First money in, conversion to seed round at better terms
+- If it doesn't: Honest "this didn't work" admission by month 6
 
-### For Co-Founder
+### From Co-Founder Candidates
 
-**Looking for:** Business/Sales co-founder
+**NOT leading with equity split.** That's backwards.
 
-**Ideal background:**
-- Healthcare sales experience (selling to hospitals, physicians, or medical software)
-- Technical enough to understand the product
-- Network in medical AI or clinical decision support space
-- Comfortable with early-stage risk and equity compensation
+**What I've built:**
+- 6 months of technical work (JATS parser, OpenSearch, embeddings)
+- Working backend that processes medical papers
+- Proof of concept on 100+ papers
 
-**Equity:** 20-40% (negotiable based on experience and contribution)
+**What I need:**
+- Someone who can talk to doctors and close deals
+- Healthcare sales experience (selling to physicians or hospital systems)
+- Comfortable with "validate fast or fail fast" approach
 
-**Responsibilities:**
-- Platform partnership sales (Glass Health, UpToDate, etc.)
-- Direct customer acquisition strategy
-- Fundraising (if needed)
-- Business operations and finance
+**The conversation:**
+1. Show you the working demo
+2. Discuss customer discovery plan (20 doctors in 4 weeks)
+3. If you believe in it, we talk equity (20-40% range based on contribution)
+4. If you don't, no hard feelings - I'd rather find out now
 
-## Why This Works
+**12-week constraint is a feature:** We'll know if this works quickly. No years of "maybe."
 
-**Technical moat:** Multi-hop graph RAG over medical literature is genuinely hard. 6 months of work already done.
+## Why This Might Actually Work
 
-**Market timing:** MCP protocol just launched. First-mover advantage as medical graph RAG infrastructure.
+**Not because of TAM or projections.** Those are made-up numbers.
 
-**Real problem:** Doctors do this detective work manually today. We're making it systematic.
+**Because:**
 
-**Multiple paths to revenue:** Platform deals (fast), direct subscriptions (scalable), enterprise (high-value).
+1. **Real problem:** I watched someone nearly die because doctors couldn't connect evidence
+2. **Working code:** I have 6 months of technical infrastructure built
+3. **Forced validation:** 12-week constraint means no hiding from reality
+4. **Ecosystem timing:** MCP just launched, we're first medical graph RAG server
+5. **Realistic moat:** Not 10 years, but 6-12 months if we execute fast
 
-**Capital efficient:** Can build to $1M ARR with <$500K funding. Backend mostly built.
+## Why This Might Fail
 
-**Clear exits:** Strategic acquirers exist and are actively buying in this space.
+**Honest risks:**
+
+1. **Doctors won't pay:** Institutions control budgets, individual adoption is hard
+2. **Platforms build it themselves:** Glass Health has resources to copy this
+3. **Sales cycle too long:** Even "just an MCP server" needs trust and integration
+4. **Churn is high:** Solves problem for 5% of cases, not worth $50/month
+5. **I can't sell:** I'm an engineer, not a salesperson - need co-founder fast
 
 ## Next Steps
 
-**For investors:** Review deck, schedule demo call, meet founding team
+**This week:**
+1. Ship MCP server wrapper (in progress)
+2. Set up 10 customer discovery calls (starting with my partner's doctor)
+3. Create demo video (3 minutes showing complex query → multi-hop answer)
 
-**For co-founder candidates:** Review technical repo, discuss equity split, align on vision
+**Week 2:**
+1. Talk to 20 physicians
+2. Ask: "Would you pay $50/month for this? Why or why not?"
+3. Document every objection and feature request
 
-**For platform partners:** See demo, discuss integration timeline, pilot terms
+**Week 4:**
+1. Pivot if feedback is bad
+2. Double down if feedback is good
+3. Raise angel round or find co-founder if validation works
 
-**For early users:** Join beta, provide feedback, get free access
+**I'm building this regardless.** The question is whether it's venture-backable or a consulting side project.
 
 ---
 
 **Contact:** [Your contact information]
 
+**What I'd love from you:**
+
+- **Investors:** Advice on customer discovery, even if not investing yet
+- **Co-founders:** Coffee to see the demo and discuss validation plan
+- **Doctors:** 20 minutes to tell me why this would/wouldn't help you
+- **Platform founders:** Honest feedback on whether you'd integrate vs build
+
 **Links:**
 - GitHub: https://github.com/wware/med-graph-rag
-- Demo video: [To be created]
-- Technical docs: See TECH_CHAT.md and README.md
+- Technical docs: README.md, TECH_CHAT.md
+- Clinician pitch: CLINICIAN_PITCH.md
