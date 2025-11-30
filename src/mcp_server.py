@@ -25,15 +25,25 @@ from src.client.medical_papers_client import MedicalPapersClient
 
 
 class MCPServer:
-    """
-    MCP Server for medical literature reasoning.
+    """MCP Server for medical literature reasoning.
 
     Implements the Model Context Protocol specification for stdio transport.
     Connects AI assistants (Claude Desktop, etc.) to the medical knowledge graph backend.
+
+    Attributes:
+        opensearch_host (str): Hostname for OpenSearch.
+        opensearch_port (int): Port for OpenSearch.
+        client (Optional[MedicalPapersClient]): Client for interacting with the medical papers knowledge base.
+        tools (List[Dict[str, Any]]): List of tools provided by this server.
     """
 
     def __init__(self, opensearch_host: str = "localhost", opensearch_port: int = 9200):
-        """Initialize MCP server with OpenSearch connection"""
+        """Initialize MCP server with OpenSearch connection.
+
+        Args:
+            opensearch_host (str): Hostname for OpenSearch. Defaults to "localhost".
+            opensearch_port (int): Port for OpenSearch. Defaults to 9200.
+        """
         self.opensearch_host = opensearch_host
         self.opensearch_port = opensearch_port
         self.client: Optional[MedicalPapersClient] = None
@@ -105,8 +115,12 @@ class MCPServer:
             }
         ]
 
-    async def initialize(self):
-        """Initialize OpenSearch client"""
+    async def initialize(self) -> bool:
+        """Initialize OpenSearch client.
+
+        Returns:
+            bool: True if initialization was successful, False otherwise.
+        """
         try:
             self.client = MedicalPapersClient(
                 opensearch_host=self.opensearch_host,
@@ -117,25 +131,43 @@ class MCPServer:
             self._log_error(f"Failed to initialize OpenSearch client: {e}")
             return False
 
-    def _log_error(self, message: str):
-        """Log errors to stderr"""
+    def _log_error(self, message: str) -> None:
+        """Log errors to stderr.
+
+        Args:
+            message (str): The error message to log.
+        """
         print(f"ERROR: {message}", file=sys.stderr)
 
-    def _log_info(self, message: str):
-        """Log info to stderr"""
+    def _log_info(self, message: str) -> None:
+        """Log info to stderr.
+
+        Args:
+            message (str): The info message to log.
+        """
         print(f"INFO: {message}", file=sys.stderr)
 
     async def handle_list_tools(self) -> Dict[str, Any]:
-        """Handle tools/list request"""
+        """Handle tools/list request.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the list of available tools.
+        """
         return {
             "tools": self.tools
         }
 
     async def handle_call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle tools/call request
+        """Handle tools/call request.
 
         Routes to appropriate tool handler based on tool_name.
+
+        Args:
+            tool_name (str): The name of the tool to call.
+            arguments (Dict[str, Any]): The arguments for the tool.
+
+        Returns:
+            Dict[str, Any]: The result of the tool execution.
         """
         if not self.client:
             return {
@@ -178,8 +210,7 @@ class MCPServer:
             }
 
     async def _handle_graph_search(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle pubmed_graph_search tool
+        """Handle pubmed_graph_search tool.
 
         TODO: Implement multi-hop graph traversal logic:
         1. Parse query to extract entities and relationships
@@ -187,6 +218,12 @@ class MCPServer:
         3. Follow relationship chains up to max_depth
         4. Aggregate results with confidence scoring
         5. Format with paragraph-level provenance
+
+        Args:
+            arguments (Dict[str, Any]): Tool arguments containing 'query', 'max_depth', and 'min_confidence'.
+
+        Returns:
+            Dict[str, Any]: The search results.
         """
         query = arguments.get("query", "")
         max_depth = arguments.get("max_depth", 2)
@@ -211,8 +248,7 @@ class MCPServer:
         }
 
     async def _handle_diagnostic_chain(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle diagnostic_chain_trace tool
+        """Handle diagnostic_chain_trace tool.
 
         TODO: Implement diagnostic reasoning:
         1. Parse symptoms to extract clinical entities
@@ -220,6 +256,12 @@ class MCPServer:
         3. Query for diagnosis → treatment relationships
         4. Build diagnostic pathway with evidence
         5. Score pathways by evidence strength
+
+        Args:
+            arguments (Dict[str, Any]): Tool arguments containing 'symptoms' and 'context'.
+
+        Returns:
+            Dict[str, Any]: The diagnostic chain results.
         """
         symptoms = arguments.get("symptoms", [])
         context = arguments.get("context", "")
@@ -246,8 +288,7 @@ class MCPServer:
         }
 
     async def _handle_contradiction_check(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle evidence_contradiction_check tool
+        """Handle evidence_contradiction_check tool.
 
         TODO: Implement contradiction detection:
         1. Query for papers discussing the claim
@@ -255,6 +296,12 @@ class MCPServer:
         3. Group by evidence quality (RCTs > cohort > case reports)
         4. Identify contradictions (same intervention, different outcomes)
         5. Format with temporal evolution if applicable
+
+        Args:
+            arguments (Dict[str, Any]): Tool arguments containing 'claim' and 'include_meta_analyses'.
+
+        Returns:
+            Dict[str, Any]: The contradiction check results.
         """
         claim = arguments.get("claim", "")
         include_meta = arguments.get("include_meta_analyses", True)
@@ -275,8 +322,16 @@ class MCPServer:
             ]
         }
 
-    def _format_search_results(self, results: List[Dict], query: str) -> str:
-        """Format graph search results for display"""
+    def _format_search_results(self, results: List[Dict[str, Any]], query: str) -> str:
+        """Format graph search results for display.
+
+        Args:
+            results (List[Dict[str, Any]]): List of search results.
+            query (str): The original query.
+
+        Returns:
+            str: Formatted string of results.
+        """
         if not results:
             return f"No results found for: {query}"
 
@@ -296,8 +351,16 @@ class MCPServer:
 
         return "\n".join(output)
 
-    def _format_diagnostic_results(self, results: List[Dict], symptoms: List[str]) -> str:
-        """Format diagnostic chain results"""
+    def _format_diagnostic_results(self, results: List[Dict[str, Any]], symptoms: List[str]) -> str:
+        """Format diagnostic chain results.
+
+        Args:
+            results (List[Dict[str, Any]]): List of search results.
+            symptoms (List[str]): List of symptoms.
+
+        Returns:
+            str: Formatted string of results.
+        """
         if not results:
             return f"No diagnostic pathways found for: {', '.join(symptoms)}"
 
@@ -316,8 +379,16 @@ class MCPServer:
 
         return "\n".join(output)
 
-    def _format_contradiction_results(self, results: List[Dict], claim: str) -> str:
-        """Format contradiction check results"""
+    def _format_contradiction_results(self, results: List[Dict[str, Any]], claim: str) -> str:
+        """Format contradiction check results.
+
+        Args:
+            results (List[Dict[str, Any]]): List of search results.
+            claim (str): The original claim.
+
+        Returns:
+            str: Formatted string of results.
+        """
         if not results:
             return f"No evidence found for: {claim}"
 
@@ -337,10 +408,15 @@ class MCPServer:
         return "\n".join(output)
 
     async def handle_request(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Handle incoming MCP request
+        """Handle incoming MCP request.
 
         Routes requests to appropriate handlers based on method.
+
+        Args:
+            request (Dict[str, Any]): The incoming request dictionary.
+
+        Returns:
+            Dict[str, Any]: The response dictionary.
         """
         method = request.get("method", "")
 
@@ -359,9 +435,8 @@ class MCPServer:
                 }
             }
 
-    async def run(self):
-        """
-        Main server loop - reads from stdin, writes to stdout
+    async def run(self) -> None:
+        """Main server loop - reads from stdin, writes to stdout.
 
         Implements stdio transport for MCP protocol.
         """

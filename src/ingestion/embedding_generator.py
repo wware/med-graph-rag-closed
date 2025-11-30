@@ -11,10 +11,19 @@ import time
 
 
 class EmbeddingGenerator:
-    """Generate embeddings using AWS Bedrock Titan Embeddings V2"""
+    """Generate embeddings using AWS Bedrock Titan Embeddings V2.
+
+    Attributes:
+        bedrock (boto3.client): The AWS Bedrock runtime client.
+        model_id (str): The ID of the model to use for embeddings.
+    """
 
     def __init__(self, region_name: str = 'us-east-1'):
-        """Initialize Bedrock client"""
+        """Initialize Bedrock client.
+
+        Args:
+            region_name (str): AWS region name. Defaults to 'us-east-1'.
+        """
         self.bedrock = boto3.client(
             service_name='bedrock-runtime',
             region_name=region_name
@@ -22,15 +31,18 @@ class EmbeddingGenerator:
         self.model_id = 'amazon.titan-embed-text-v2:0'
 
     def embed_text(self, text: str, input_type: str = 'search_document') -> List[float]:
-        """
-        Generate embedding for a single text string
+        """Generate embedding for a single text string.
 
         Args:
-            text: Text to embed (max ~8000 tokens)
-            input_type: 'search_document' for indexing, 'search_query' for queries
+            text (str): Text to embed (max ~8000 tokens).
+            input_type (str): 'search_document' for indexing, 'search_query' for queries.
+                Defaults to 'search_document'.
 
         Returns:
-            List of floats representing the embedding vector (1024 dimensions)
+            List[float]: List of floats representing the embedding vector (1024 dimensions).
+
+        Raises:
+            Exception: If there is an error invoking the Bedrock model.
         """
         # Truncate if too long (Titan v2 max is ~8000 tokens, roughly 30k chars)
         if len(text) > 30000:
@@ -59,17 +71,17 @@ class EmbeddingGenerator:
 
     def embed_batch(self, texts: List[str], input_type: str = 'search_document',
                    batch_size: int = 10, delay: float = 0.1) -> List[List[float]]:
-        """
-        Generate embeddings for multiple texts with rate limiting
+        """Generate embeddings for multiple texts with rate limiting.
 
         Args:
-            texts: List of texts to embed
-            input_type: 'search_document' for indexing, 'search_query' for queries
-            batch_size: Process this many at once before delay
-            delay: Seconds to wait between batches
+            texts (List[str]): List of texts to embed.
+            input_type (str): 'search_document' for indexing, 'search_query' for queries.
+                Defaults to 'search_document'.
+            batch_size (int): Process this many at once before delay. Defaults to 10.
+            delay (float): Seconds to wait between batches. Defaults to 0.1.
 
         Returns:
-            List of embedding vectors
+            List[List[float]]: List of embedding vectors.
         """
         embeddings = []
 

@@ -8,16 +8,25 @@ Supports searching by keywords, filtering by date/journal, and bulk downloading.
 import requests
 import time
 import xml.etree.ElementTree as ET
-from typing import List, Dict, Optional, Set
-from dataclasses import dataclass
+from typing import List, Dict, Optional, Set, Any, Union
+from pydantic import BaseModel
 from pathlib import Path
 import json
 from urllib.parse import urlencode
 
 
-@dataclass
-class PaperMetadata:
-    """Minimal metadata for a paper from search results"""
+class PaperMetadata(BaseModel):
+    """Minimal metadata for a paper from search results.
+
+    Attributes:
+        pmc_id (str): PubMed Central ID.
+        pmid (Optional[str]): PubMed ID.
+        title (str): Paper title.
+        authors (List[str]): List of authors.
+        journal (str): Journal name.
+        pub_date (str): Publication date.
+        doi (Optional[str]): DOI.
+    """
     pmc_id: str
     pmid: Optional[str]
     title: str
@@ -28,13 +37,19 @@ class PaperMetadata:
 
 
 class PubMedCentralFetcher:
-    """
-    Fetch papers from PubMed Central Open Access subset
+    """Fetch papers from PubMed Central Open Access subset.
 
     Uses NCBI E-utilities API:
     - ESearch: Search for papers
     - EFetch: Download full JATS XML
     - ESummary: Get metadata
+
+    Attributes:
+        email (str): User email (required by NCBI).
+        api_key (Optional[str]): NCBI API key.
+        tool (str): Name of the tool.
+        rate_limit (float): Seconds between requests.
+        last_request_time (float): Timestamp of the last request.
     """
 
     BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
@@ -45,14 +60,14 @@ class PubMedCentralFetcher:
                  api_key: Optional[str] = None,
                  tool: str = "medical_knowledge_graph",
                  rate_limit: float = 0.34):
-        """
-        Initialize the fetcher
+        """Initialize the fetcher.
 
         Args:
-            email: Your email (required by NCBI)
-            api_key: NCBI API key (optional, increases rate limit to 10/sec)
-            tool: Name of your tool (for NCBI logging)
-            rate_limit: Seconds between requests (0.34 = ~3/sec without key, 0.1 = 10/sec with key)
+            email (str): Your email (required by NCBI).
+            api_key (Optional[str]): NCBI API key (optional, increases rate limit to 10/sec).
+            tool (str): Name of your tool (for NCBI logging). Defaults to "medical_knowledge_graph".
+            rate_limit (float): Seconds between requests (0.34 = ~3/sec without key, 0.1 = 10/sec with key).
+                Defaults to 0.34.
         """
         self.email = email
         self.api_key = api_key
@@ -60,15 +75,26 @@ class PubMedCentralFetcher:
         self.rate_limit = rate_limit if not api_key else 0.1
         self.last_request_time = 0
 
-    def _rate_limit_wait(self):
-        """Enforce rate limiting between API calls"""
+    def _rate_limit_wait(self) -> None:
+        """Enforce rate limiting between API calls."""
         elapsed = time.time() - self.last_request_time
         if elapsed < self.rate_limit:
             time.sleep(self.rate_limit - elapsed)
         self.last_request_time = time.time()
 
-    def _make_request(self, endpoint: str, params: Dict) -> requests.Response:
-        """Make a rate-limited request to NCBI E-utilities"""
+    def _make_request(self, endpoint: str, params: Dict[str, Any]) -> requests.Response:
+        """Make a rate-limited request to NCBI E-utilities.
+
+        Args:
+            endpoint (str): The API endpoint to call.
+            params (Dict[str, Any]): The query parameters.
+
+        Returns:
+            requests.Response: The API response.
+
+        Raises:
+            requests.exceptions.RequestException: If the request fails.
+        """
         self._rate_limit_wait()
 
         # Add required parameters
@@ -93,18 +119,17 @@ class PubMedCentralFetcher:
                      start_date: Optional[str] = None,
                      end_date: Optional[str] = None,
                      sort: str = "relevance") -> List[str]:
-        """
-        Search PubMed Central for papers matching query
+        """Search PubMed Central for papers matching query.
 
         Args:
-            query: Search query (e.g., "breast cancer BRCA1")
-            max_results: Maximum number of results to return
-            start_date: Filter by publication date (YYYY/MM/DD format)
-            end_date: Filter by publication date (YYYY/MM/DD format)
-            sort: Sort order ("relevance" or "pub_date")
+            query (str): Search query (e.g., "breast cancer BRCA1").
+            max_results (int): Maximum number of results to return. Defaults to 100.
+            start_date (Optional[str]): Filter by publication date (YYYY/MM/DD format).
+            end_date (Optional[str]): Filter by publication date (YYYY/MM/DD format).
+            sort (str): Sort order ("relevance" or "pub_date"). Defaults to "relevance".
 
         Returns:
-            List of PMC IDs (without "PMC" prefix)
+            List[str]: List of PMC IDs (without "PMC" prefix).
         """
         # Build the query
         search_query = f"{query} AND open access[filter]"  # Only open access papers
@@ -131,14 +156,13 @@ class PubMedCentralFetcher:
         return id_list
 
     def get_paper_metadata(self, pmc_ids: List[str]) -> List[PaperMetadata]:
-        """
-        Get metadata for papers (useful for filtering before downloading)
+        """Get metadata for papers (useful for filtering before downloading).
 
         Args:
-            pmc_ids: List of PMC IDs (without "PMC" prefix)
+            pmc_ids (List[str]): List of PMC IDs (without "PMC" prefix).
 
         Returns:
-            List of PaperMetadata objects
+            List[PaperMetadata]: List of PaperMetadata objects.
         """
         if not pmc_ids:
             return []
@@ -191,15 +215,14 @@ class PubMedCentralFetcher:
         return all_metadata
 
     def download_paper_xml(self, pmc_id: str, output_dir: Path) -> Optional[Path]:
-        """
-        Download JATS XML for a single paper
+        """Download JATS XML for a single paper.
 
         Args:
-            pmc_id: PMC ID (without "PMC" prefix)
-            output_dir: Directory to save XML files
+            pmc_id (str): PMC ID (without "PMC" prefix).
+            output_dir (Path): Directory to save XML files.
 
         Returns:
-            Path to downloaded file, or None if failed
+            Optional[Path]: Path to downloaded file, or None if failed.
         """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -243,16 +266,15 @@ class PubMedCentralFetcher:
                               pmc_ids: List[str],
                               output_dir: Path,
                               save_metadata: bool = True) -> Dict[str, int]:
-        """
-        Download multiple papers
+        """Download multiple papers.
 
         Args:
-            pmc_ids: List of PMC IDs
-            output_dir: Directory to save files
-            save_metadata: Whether to save a metadata JSON file
+            pmc_ids (List[str]): List of PMC IDs.
+            output_dir (Path): Directory to save files.
+            save_metadata (bool): Whether to save a metadata JSON file. Defaults to True.
 
         Returns:
-            Dict with success/failure counts
+            Dict[str, int]: Dict with success/failure counts.
         """
         output_dir = Path(output_dir)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -316,18 +338,17 @@ class PubMedCentralFetcher:
                            max_results: int = 100,
                            start_date: Optional[str] = None,
                            end_date: Optional[str] = None) -> Dict[str, int]:
-        """
-        Search for papers and download them in one operation
+        """Search for papers and download them in one operation.
 
         Args:
-            query: Search query
-            output_dir: Directory to save files
-            max_results: Maximum number of papers to download
-            start_date: Filter by publication date (YYYY/MM/DD)
-            end_date: Filter by publication date (YYYY/MM/DD)
+            query (str): Search query.
+            output_dir (Path): Directory to save files.
+            max_results (int): Maximum number of papers to download. Defaults to 100.
+            start_date (Optional[str]): Filter by publication date (YYYY/MM/DD).
+            end_date (Optional[str]): Filter by publication date (YYYY/MM/DD).
 
         Returns:
-            Dict with success/failure counts
+            Dict[str, int]: Dict with success/failure counts.
         """
         # Search
         pmc_ids = self.search_papers(
@@ -346,11 +367,13 @@ class PubMedCentralFetcher:
 
 
 class PMCBulkDownloader:
-    """
-    Alternative approach: Download from PMC Open Access bulk files
+    """Alternative approach: Download from PMC Open Access bulk files.
 
     PMC provides bulk downloads organized by journal. This is much faster
     for large-scale downloads but requires more storage and processing.
+
+    Attributes:
+        base_url (str): Base URL for PMC FTP.
     """
 
     OA_FILE_LIST = "https://ftp.ncbi.nlm.nih.gov/pub/pmc/oa_file_list.txt"
@@ -359,11 +382,10 @@ class PMCBulkDownloader:
         self.base_url = base_url
 
     def get_oa_file_list(self) -> List[Dict[str, str]]:
-        """
-        Get the list of all open access papers with their FTP paths
+        """Get the list of all open access papers with their FTP paths.
 
         Returns:
-            List of dicts with 'pmc_id', 'journal', 'path' keys
+            List[Dict[str, str]]: List of dicts with 'pmc_id', 'journal', 'path' keys.
         """
         print("Downloading OA file list (this may take a minute)...")
 
@@ -389,7 +411,15 @@ class PMCBulkDownloader:
     def filter_by_journals(self,
                           papers: List[Dict[str, str]],
                           journals: List[str]) -> List[Dict[str, str]]:
-        """Filter papers by journal name"""
+        """Filter papers by journal name.
+
+        Args:
+            papers (List[Dict[str, str]]): List of papers.
+            journals (List[str]): List of journal names to filter by.
+
+        Returns:
+            List[Dict[str, str]]: Filtered list of papers.
+        """
         journals_lower = [j.lower() for j in journals]
 
         filtered = [
@@ -490,15 +520,17 @@ def example_usage():
 def build_disease_corpus(disease: str,
                         max_papers: int = 1000,
                         output_dir: Path = Path("./corpus"),
-                        email: str = "your.email@example.com"):
-    """
-    Convenience function to build a disease-specific corpus
+                        email: str = "your.email@example.com") -> Path:
+    """Convenience function to build a disease-specific corpus.
 
     Args:
-        disease: Disease name (e.g., "breast cancer", "diabetes")
-        max_papers: Maximum number of papers to download
-        output_dir: Where to save papers
-        email: Your email for NCBI
+        disease (str): Disease name (e.g., "breast cancer", "diabetes").
+        max_papers (int): Maximum number of papers to download. Defaults to 1000.
+        output_dir (Path): Where to save papers. Defaults to "./corpus".
+        email (str): Your email for NCBI. Defaults to "your.email@example.com".
+
+    Returns:
+        Path: The directory where the corpus was saved.
     """
     fetcher = PubMedCentralFetcher(email=email)
 

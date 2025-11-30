@@ -15,8 +15,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.client.medical_papers_client import MedicalPapersClient
 
 
-def interactive_mode(client: MedicalPapersClient):
-    """Interactive query testing mode"""
+def interactive_mode(client: MedicalPapersClient) -> None:
+    """Interactive query testing mode.
+
+    Args:
+        client (MedicalPapersClient): The initialized client.
+    """
     print("=== Medical Knowledge Graph - Interactive Query Mode ===")
     print("Enter your queries below. Type 'quit' or 'exit' to exit.")
     print("Commands:")
@@ -79,8 +83,15 @@ def interactive_mode(client: MedicalPapersClient):
             print(f"Error: {e}")
 
 
-def run_query(client: MedicalPapersClient, query: str, search_type: str = 'hybrid', k: int = 10):
-    """Run a single query and display results"""
+def run_query(client: MedicalPapersClient, query: str, search_type: str = 'hybrid', k: int = 10) -> None:
+    """Run a single query and display results.
+
+    Args:
+        client (MedicalPapersClient): The initialized client.
+        query (str): The search query.
+        search_type (str): The type of search ('semantic', 'keyword', 'hybrid'). Defaults to 'hybrid'.
+        k (int): Number of results to return. Defaults to 10.
+    """
     print(f"Running {search_type} search for: '{query}'")
 
     if search_type == 'semantic':
@@ -104,7 +115,8 @@ def run_query(client: MedicalPapersClient, query: str, search_type: str = 'hybri
         print()
 
 
-def main():
+def main() -> None:
+    """Main CLI interface."""
     parser = argparse.ArgumentParser(description='Test queries against medical knowledge graph')
     parser.add_argument('--opensearch-host', default='localhost',
                        help='OpenSearch host (default: localhost)')

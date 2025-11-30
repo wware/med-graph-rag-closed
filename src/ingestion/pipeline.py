@@ -8,7 +8,7 @@ and indexes them to Amazon OpenSearch Service for hybrid vector + keyword search
 import boto3
 import json
 import os
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union
 from dataclasses import asdict
 import time
 from pathlib import Path
@@ -18,27 +18,31 @@ from .embedding_generator import EmbeddingGenerator
 
 
 class OpenSearchIndexer:
-    """Index documents with embeddings to OpenSearch (local or AWS)"""
+    """Index documents with embeddings to OpenSearch (local or AWS).
+
+    Attributes:
+        client (OpenSearch): The OpenSearch client.
+        index_name (str): The name of the index.
+    """
 
     def __init__(self,
-                 host: str = None,
-                 port: int = None,
+                 host: Optional[str] = None,
+                 port: Optional[int] = None,
                  region: str = 'us-east-1',
                  index_name: str = 'medical-papers',
                  create_index: bool = True,
-                 use_ssl: bool = None,
-                 use_aws_auth: bool = None):
-        """
-        Initialize OpenSearch client
+                 use_ssl: Optional[bool] = None,
+                 use_aws_auth: Optional[bool] = None):
+        """Initialize OpenSearch client.
 
         Args:
-            host: OpenSearch host (defaults to OPENSEARCH_HOST env var or 'localhost')
-            port: OpenSearch port (defaults to OPENSEARCH_PORT env var or 9200)
-            region: AWS region (only used if use_aws_auth=True)
-            index_name: Name of the index to use
-            create_index: Whether to create index if it doesn't exist
-            use_ssl: Whether to use SSL (auto-detected if None)
-            use_aws_auth: Whether to use AWS auth (auto-detected if None)
+            host (Optional[str]): OpenSearch host. Defaults to OPENSEARCH_HOST env var or 'localhost'.
+            port (Optional[int]): OpenSearch port. Defaults to OPENSEARCH_PORT env var or 9200.
+            region (str): AWS region (only used if use_aws_auth=True). Defaults to 'us-east-1'.
+            index_name (str): Name of the index to use. Defaults to 'medical-papers'.
+            create_index (bool): Whether to create index if it doesn't exist. Defaults to True.
+            use_ssl (Optional[bool]): Whether to use SSL. Auto-detected based on host if None.
+            use_aws_auth (Optional[bool]): Whether to use AWS auth. Auto-detected based on host if None.
         """
         # Get configuration from environment variables
         host = host or os.getenv('OPENSEARCH_HOST', 'localhost')
@@ -76,8 +80,8 @@ class OpenSearchIndexer:
         if create_index:
             self._create_index_if_not_exists()
 
-    def _create_index_if_not_exists(self):
-        """Create the index with appropriate mappings if it doesn't exist"""
+    def _create_index_if_not_exists(self) -> None:
+        """Create the index with appropriate mappings if it doesn't exist."""
         if self.client.indices.exists(index=self.index_name):
             print(f"Index '{self.index_name}' already exists")
             return
@@ -162,15 +166,14 @@ class OpenSearchIndexer:
         print(f"Created index '{self.index_name}'")
 
     def index_document(self, doc_id: str, document: Dict[str, Any]) -> bool:
-        """
-        Index a single document
+        """Index a single document.
 
         Args:
-            doc_id: Unique document ID
-            document: Document to index (must include 'embedding' field)
+            doc_id (str): Unique document ID.
+            document (Dict[str, Any]): Document to index (must include 'embedding' field).
 
         Returns:
-            True if successful
+            bool: True if successful, False otherwise.
         """
         try:
             response = self.client.index(
@@ -186,15 +189,14 @@ class OpenSearchIndexer:
 
     def bulk_index(self, documents: List[Dict[str, Any]],
                    chunk_size: int = 500) -> Dict[str, int]:
-        """
-        Bulk index multiple documents
+        """Bulk index multiple documents.
 
         Args:
-            documents: List of dicts with 'id' and 'document' keys
-            chunk_size: Number of docs to index at once
+            documents (List[Dict[str, Any]]): List of dicts with 'id' and 'document' keys.
+            chunk_size (int): Number of docs to index at once. Defaults to 500.
 
         Returns:
-            Dict with 'success' and 'failed' counts
+            Dict[str, int]: Dict with 'success' and 'failed' counts.
         """
         from opensearchpy import helpers
 
@@ -235,18 +237,18 @@ class OpenSearchIndexer:
                      filters: Optional[Dict[str, Any]] = None,
                      k: int = 10,
                      vector_weight: float = 0.5) -> List[Dict[str, Any]]:
-        """
-        Perform hybrid search combining vector similarity and keyword matching
+        """Perform hybrid search combining vector similarity and keyword matching.
 
         Args:
-            query_text: Text query for keyword search
-            query_embedding: Vector for k-NN search
-            filters: Additional filters (e.g., {"section": "results"})
-            k: Number of results to return
-            vector_weight: Weight for vector search (0-1), keyword gets (1 - vector_weight)
+            query_text (str): Text query for keyword search.
+            query_embedding (List[float]): Vector for k-NN search.
+            filters (Optional[Dict[str, Any]]): Additional filters (e.g., {"section": "results"}).
+            k (int): Number of results to return. Defaults to 10.
+            vector_weight (float): Weight for vector search (0-1), keyword gets (1 - vector_weight).
+                Defaults to 0.5.
 
         Returns:
-            List of search results with scores
+            List[Dict[str, Any]]: List of search results with scores.
         """
         # Build the query
         query = {
@@ -311,21 +313,25 @@ class OpenSearchIndexer:
 
 
 class PaperIndexingPipeline:
-    """Complete pipeline for embedding and indexing parsed papers"""
+    """Complete pipeline for embedding and indexing parsed papers.
+
+    Attributes:
+        embedder (EmbeddingGenerator): The embedding generator.
+        indexer (OpenSearchIndexer): The OpenSearch indexer.
+    """
 
     def __init__(self,
-                 opensearch_host: str = None,
-                 opensearch_port: int = None,
+                 opensearch_host: Optional[str] = None,
+                 opensearch_port: Optional[int] = None,
                  aws_region: str = 'us-east-1',
                  index_name: str = 'medical-papers'):
-        """
-        Initialize the pipeline
+        """Initialize the pipeline.
 
         Args:
-            opensearch_host: OpenSearch host (defaults to OPENSEARCH_HOST env var or 'localhost')
-            opensearch_port: OpenSearch port (defaults to OPENSEARCH_PORT env var or 9200)
-            aws_region: AWS region for Bedrock and OpenSearch (if using AWS)
-            index_name: Name of the OpenSearch index
+            opensearch_host (Optional[str]): OpenSearch host. Defaults to OPENSEARCH_HOST env var or 'localhost'.
+            opensearch_port (Optional[int]): OpenSearch port. Defaults to OPENSEARCH_PORT env var or 9200.
+            aws_region (str): AWS region for Bedrock and OpenSearch (if using AWS). Defaults to 'us-east-1'.
+            index_name (str): Name of the OpenSearch index. Defaults to 'medical-papers'.
         """
         self.embedder = EmbeddingGenerator(region_name=aws_region)
         self.indexer = OpenSearchIndexer(
@@ -336,14 +342,13 @@ class PaperIndexingPipeline:
         )
 
     def process_paper(self, paper: ParsedPaper) -> Dict[str, int]:
-        """
-        Process a single paper: generate embeddings and index all chunks
+        """Process a single paper: generate embeddings and index all chunks.
 
         Args:
-            paper: ParsedPaper object from JATS parser
+            paper (ParsedPaper): ParsedPaper object from JATS parser.
 
         Returns:
-            Dict with success/failure counts
+            Dict[str, int]: Dict with success/failure counts.
         """
         documents_to_index = []
 
@@ -398,14 +403,13 @@ class PaperIndexingPipeline:
         return result
 
     def process_papers_batch(self, papers: List[ParsedPaper]) -> Dict[str, int]:
-        """
-        Process multiple papers
+        """Process multiple papers.
 
         Args:
-            papers: List of ParsedPaper objects
+            papers (List[ParsedPaper]): List of ParsedPaper objects.
 
         Returns:
-            Dict with total success/failure counts
+            Dict[str, int]: Dict with total success/failure counts.
         """
         total_success = 0
         total_failed = 0

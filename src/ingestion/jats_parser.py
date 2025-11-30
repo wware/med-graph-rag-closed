@@ -6,14 +6,21 @@ for medical research paper ingestion into knowledge graph system.
 """
 
 import xml.etree.ElementTree as ET
-from typing import Dict, List, Optional
-from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
-@dataclass
-class Citation:
-    """Represents a citation/reference within the paper"""
+class Citation(BaseModel):
+    """Represents a citation/reference within the paper.
+
+    Attributes:
+        ref_id (str): The reference ID.
+        cited_pmid (Optional[str]): The cited PubMed ID.
+        cited_pmc (Optional[str]): The cited PubMed Central ID.
+        cited_doi (Optional[str]): The cited DOI.
+        citation_text (Optional[str]): The text of the citation.
+    """
     ref_id: str
     cited_pmid: Optional[str] = None
     cited_pmc: Optional[str] = None
@@ -21,30 +28,58 @@ class Citation:
     citation_text: Optional[str] = None
 
 
-@dataclass
-class TableData:
-    """Represents a table in the paper"""
+class TableData(BaseModel):
+    """Represents a table in the paper.
+
+    Attributes:
+        table_id (str): The table ID.
+        label (str): The table label (e.g., "Table 1").
+        caption (str): The table caption.
+        content (str): The table content as a string.
+        section (str): The section where the table is located.
+    """
     table_id: str
-    label: str  # e.g., "Table 1"
+    label: str
     caption: str
-    content: str  # We'll store as string; could parse to structured data
+    content: str
     section: str
 
 
-@dataclass
-class Chunk:
-    """Represents a chunk of text for embedding"""
+class Chunk(BaseModel):
+    """Represents a chunk of text for embedding.
+
+    Attributes:
+        text (str): The text content.
+        section (str): The section name.
+        subsection (Optional[str]): The subsection name.
+        paragraph_index (int): The index of the paragraph.
+        chunk_type (str): The type of chunk ('paragraph', 'sentence', 'abstract').
+        citations (List[str]): List of citation IDs in this chunk.
+    """
     text: str
     section: str
     subsection: Optional[str]
     paragraph_index: int
-    chunk_type: str  # 'paragraph', 'sentence', 'abstract'
-    citations: List[str] = field(default_factory=list)
+    chunk_type: str
+    citations: List[str] = Field(default_factory=list)
 
 
-@dataclass
-class PaperMetadata:
-    """Core metadata about the paper"""
+class PaperMetadata(BaseModel):
+    """Core metadata about the paper.
+
+    Attributes:
+        pmc_id (str): PubMed Central ID.
+        pmid (Optional[str]): PubMed ID.
+        doi (Optional[str]): DOI.
+        title (str): Paper title.
+        abstract (str): Paper abstract.
+        authors (List[str]): List of authors.
+        affiliations (List[str]): List of affiliations.
+        journal (str): Journal name.
+        publication_date (Optional[str]): Publication date.
+        mesh_terms (List[str]): List of MeSH terms.
+        keywords (List[str]): List of keywords.
+    """
     pmc_id: str
     pmid: Optional[str]
     doi: Optional[str]
@@ -58,9 +93,16 @@ class PaperMetadata:
     keywords: List[str]
 
 
-@dataclass
-class ParsedPaper:
-    """Complete parsed paper with all extracted content"""
+class ParsedPaper(BaseModel):
+    """Complete parsed paper with all extracted content.
+
+    Attributes:
+        metadata (PaperMetadata): Paper metadata.
+        chunks (List[Chunk]): List of text chunks.
+        tables (List[TableData]): List of tables.
+        references (Dict[str, Citation]): Dictionary of references.
+        full_text (str): Complete text of the paper.
+    """
     metadata: PaperMetadata
     chunks: List[Chunk]
     tables: List[TableData]
@@ -69,7 +111,12 @@ class ParsedPaper:
 
 
 class JATSParser:
-    """Parser for JATS XML format from PubMed Central"""
+    """Parser for JATS XML format from PubMed Central.
+
+    Attributes:
+        tree (ET.ElementTree): The parsed XML tree.
+        root (ET.Element): The root element of the XML tree.
+    """
 
     # Common JATS XML namespaces
     NAMESPACES = {
@@ -79,7 +126,11 @@ class JATSParser:
     }
 
     def __init__(self, xml_path: str):
-        """Initialize parser with path to JATS XML file"""
+        """Initialize parser with path to JATS XML file.
+
+        Args:
+            xml_path (str): Path to the JATS XML file.
+        """
         self.tree = ET.parse(xml_path)
         self.root = self.tree.getroot()
 

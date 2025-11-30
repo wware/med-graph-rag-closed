@@ -8,16 +8,32 @@ Provides convenient methods for search, exploration, and analysis.
 import boto3
 import json
 import os
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Union
 from dataclasses import dataclass, asdict
+from pydantic import BaseModel
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
 from datetime import datetime
 import pandas as pd
 
 
-@dataclass
-class SearchResult:
-    """Structured search result"""
+class SearchResult(BaseModel):
+    """Structured search result representing a chunk of a medical paper.
+
+    Attributes:
+        score (float): Relevance score from the search engine.
+        pmc_id (str): PubMed Central ID of the paper.
+        pmid (Optional[str]): PubMed ID of the paper.
+        title (str): Title of the paper.
+        section (str): Section of the paper where the chunk is found.
+        chunk_text (str): The actual text content of the chunk.
+        authors (List[str]): List of authors of the paper.
+        journal (str): Journal where the paper was published.
+        publication_date (str): Publication date of the paper.
+        citations (List[str]): List of citations in the paper.
+        mesh_terms (List[str]): List of MeSH terms associated with the paper.
+        subsection (Optional[str]): Subsection of the paper, if applicable.
+        doi (Optional[str]): Digital Object Identifier of the paper.
+    """
     score: float
     pmc_id: str
     pmid: Optional[str]
@@ -33,7 +49,11 @@ class SearchResult:
     doi: Optional[str] = None
 
     def __str__(self) -> str:
-        """Pretty print a result"""
+        """Returns a formatted string representation of the search result.
+
+        Returns:
+            str: A formatted string containing key information about the paper chunk.
+        """
         return f"""
 Score: {self.score:.3f}
 Paper: {self.title}
@@ -48,27 +68,30 @@ Text:
 
 
 class MedicalPapersClient:
-    """Client for querying medical papers knowledge base"""
+    """Client for querying medical papers knowledge base.
+
+    This client handles connections to OpenSearch and AWS Bedrock (if configured)
+    to perform keyword, vector, and hybrid searches on indexed medical papers.
+    """
 
     def __init__(self,
-                 opensearch_host: str = None,
-                 opensearch_port: int = None,
+                 opensearch_host: Optional[str] = None,
+                 opensearch_port: Optional[int] = None,
                  aws_region: str = 'us-east-1',
                  index_name: str = 'medical-papers',
                  aws_profile: Optional[str] = None,
-                 use_ssl: bool = None,
-                 use_aws_auth: bool = None):
-        """
-        Initialize client
+                 use_ssl: Optional[bool] = None,
+                 use_aws_auth: Optional[bool] = None):
+        """Initialize the MedicalPapersClient.
 
         Args:
-            opensearch_host: OpenSearch host (defaults to OPENSEARCH_HOST env var or 'localhost')
-            opensearch_port: OpenSearch port (defaults to OPENSEARCH_PORT env var or 9200)
-            aws_region: AWS region
-            index_name: Name of the index
-            aws_profile: AWS profile name (if using multiple profiles)
-            use_ssl: Whether to use SSL (auto-detected if None)
-            use_aws_auth: Whether to use AWS auth (auto-detected if None)
+            opensearch_host (Optional[str]): OpenSearch host. Defaults to OPENSEARCH_HOST env var or 'localhost'.
+            opensearch_port (Optional[int]): OpenSearch port. Defaults to OPENSEARCH_PORT env var or 9200.
+            aws_region (str): AWS region. Defaults to 'us-east-1'.
+            index_name (str): Name of the OpenSearch index. Defaults to 'medical-papers'.
+            aws_profile (Optional[str]): AWS profile name to use for credentials.
+            use_ssl (Optional[bool]): Whether to use SSL. Auto-detected based on host if None.
+            use_aws_auth (Optional[bool]): Whether to use AWS authentication. Auto-detected based on host if None.
         """
         # Get configuration from environment variables
         opensearch_host = opensearch_host or os.getenv('OPENSEARCH_HOST', 'localhost')
@@ -496,9 +519,14 @@ class MedicalPapersClient:
 
         return contexts
 
-    def export_results_to_csv(self, results: List[SearchResult], filename: str):
-        """Export search results to CSV for further analysis"""
-        df = pd.DataFrame([asdict(r) for r in results])
+    def export_results_to_csv(self, results: List[SearchResult], filename: str) -> None:
+        """Export search results to CSV for further analysis.
+
+        Args:
+            results (List[SearchResult]): List of search results to export.
+            filename (str): Name of the CSV file to create.
+        """
+        df = pd.DataFrame([r.model_dump() for r in results])
         df.to_csv(filename, index=False)
         print(f"Exported {len(results)} results to {filename}")
 
