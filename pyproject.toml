@@ -25,6 +25,8 @@ dependencies = [
     # AWS SDK
     "aioboto3>=12.3.0",
     "pytest>=9.0.1",
+    "black>=25.11.0",
+    "ruff>=0.14.7",
 ]
 
 [project.scripts]
