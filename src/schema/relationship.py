@@ -2,7 +2,13 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
-class BaseMedicalRelationship(BaseModel):
+class Relationship(BaseModel):
+    subject_id: str
+    predicate: str
+    object_id: str
+
+
+class BaseMedicalRelationship(Relationship):
     """
     Base class for all medical relationships with comprehensive provenance tracking.
 
@@ -32,10 +38,6 @@ class BaseMedicalRelationship(BaseModel):
         ...     response_rate=0.59
         ... )
     """
-
-    subject_id: str
-    predicate: str
-    object_id: str
 
     # Provenance - required for all medical relationships
     source_papers: List[str] = Field(
@@ -300,23 +302,14 @@ class SideEffect(BaseMedicalRelationship):
 ### Research Metadata Relationships
 
 
-class ResearchRelationship(BaseModel):
+class ResearchRelationship(Relationship):
     """
     Base class for research metadata relationships.
 
     These relationships connect papers, authors, and clinical trials.
     Unlike medical relationships, they don't require provenance tracking
     since they represent bibliographic metadata rather than medical claims.
-
-    Attributes:
-        subject_id: ID of the subject entity
-        predicate: Relationship type
-        object_id: ID of the object entity
     """
-
-    subject_id: str
-    predicate: str
-    object_id: str
 
 
 class CitedBy(ResearchRelationship):

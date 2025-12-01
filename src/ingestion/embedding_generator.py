@@ -6,13 +6,13 @@ Generates embeddings for text chunks to enable semantic search in OpenSearch.
 
 import boto3
 import json
-from typing import List
+from typing import List, Optional
 import time
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-import json
 from botocore.exceptions import ClientError
+from src.ingestion.embedding_cache import EmbeddingCache
 
 
 class EmbeddingGenerator:
@@ -23,7 +23,7 @@ class EmbeddingGenerator:
         model_id (str): The ID of the model to use for embeddings.
     """
 
-    def __init__(self, region_name: str = 'us-east-1'):
+    def __init__(self, region_name: str = 'us-east-1', cache: Optional[EmbeddingCache] = None):
         """Initialize Bedrock client.
 
         Args:
@@ -34,14 +34,13 @@ class EmbeddingGenerator:
             region_name=region_name
         )
         self.model_id = 'amazon.titan-embed-text-v2:0'
+        self.cache = cache  # ADD THIS
 
-    def embed_text(self, text: str, input_type: str = 'search_document') -> List[float]:
+    def embed_text(self, text: str) -> List[float]:
         """Generate embedding for a single text string.
 
         Args:
             text (str): Text to embed (max ~8000 tokens).
-            input_type (str): 'search_document' for indexing, 'search_query' for queries.
-                Defaults to 'search_document'.
 
         Returns:
             List[float]: List of floats representing the embedding vector (1024 dimensions).
@@ -49,10 +48,16 @@ class EmbeddingGenerator:
         Raises:
             Exception: If there is an error invoking the Bedrock model.
         """
-        # Truncate if too long (Titan v2 max is ~8000 tokens, roughly 30k chars)
+        # Check cache first
+        if self.cache:
+            cached = self.cache.get(text)
+            if cached:
+                return cached
+        
+        # Truncate if too long
         if len(text) > 30000:
             text = text[:30000]
-
+        
         request_body = {
             "inputText": text,
             "dimensions": 1024,
@@ -66,10 +71,16 @@ class EmbeddingGenerator:
                 accept='application/json',
                 body=json.dumps(request_body)
             )
-
+            
             response_body = json.loads(response['body'].read())
-            return response_body['embedding']
-
+            embedding = response_body['embedding']
+            
+            # Cache the result
+            if self.cache:
+                self.cache.set(text, embedding)
+            
+            return embedding
+            
         except Exception as e:
             print(f"Error generating embedding: {e}")
             raise
@@ -105,6 +116,7 @@ class EmbeddingGenerator:
                 print(f"Processed {i + batch_size}/{len(texts)} embeddings")
 
         return embeddings
+
 
 ### pytest ###
 

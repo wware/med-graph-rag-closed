@@ -27,6 +27,8 @@ dependencies = [
     "pytest>=9.0.1",
     "black>=25.11.0",
     "ruff>=0.14.7",
+    "redis>=7.1.0",
+    "tqdm>=4.67.1",
 ]
 
 [project.scripts]

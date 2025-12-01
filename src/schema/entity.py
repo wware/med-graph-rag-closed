@@ -10,7 +10,7 @@ This approach provides better type safety and validation compared to a generic e
 import json
 import boto3
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 from datetime import datetime
 from tqdm import tqdm
 
@@ -627,6 +627,34 @@ class EntityCollection(BaseModel):
                     collection.pathways[entity.entity_id] = entity
 
         return collection
+
+    def find_by_embedding(self, query_embedding: List[float],
+                         top_k: int = 5,
+                         threshold: float = 0.85) -> List[Tuple[BaseMedicalEntity, float]]:
+        """
+        Find entities similar to query embedding.
+        Returns list of (entity, similarity_score) tuples.
+        """
+        from numpy import dot
+        from numpy.linalg import norm
+
+        results = []
+
+        for collection in [self.diseases, self.genes, self.drugs, self.proteins]:
+            for entity in collection.values():
+                if entity.embedding_titan_v2 is None:
+                    continue
+
+                # Cosine similarity
+                similarity = dot(query_embedding, entity.embedding_titan_v2) / \
+                            (norm(query_embedding) * norm(entity.embedding_titan_v2))
+
+                if similarity >= threshold:
+                    results.append((entity, similarity))
+
+        # Sort by similarity
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results[:top_k]
 
 
 # =====================

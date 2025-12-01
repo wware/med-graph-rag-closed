@@ -70,6 +70,7 @@ class Chunk(BaseModel):
     paragraph_index: int
     chunk_type: str
     citations: List[str] = Field(default_factory=list)
+    chunk_id: Optional[str] = None
 
 
 class PaperMetadata(BaseModel):
@@ -143,6 +144,7 @@ class JATSParser:
         """
         self.tree = ET.parse(xml_path)
         self.root = self.tree.getroot()
+        self.pmc_id = None
 
     def parse(self) -> ParsedPaper:
         """Parse the entire JATS XML document"""
@@ -170,6 +172,7 @@ class JATSParser:
         pmc_id = self._get_article_id(front, "pmc") or self._get_article_id(
             front, "pmc-domain"
         )
+        self.pmc_id = pmc_id
         pmid = self._get_article_id(front, "pmid")
         doi = self._get_article_id(front, "doi")
 
@@ -359,6 +362,7 @@ class JATSParser:
                         paragraph_index=0,
                         chunk_type="abstract",
                         citations=[],
+                        chunk_id=f"{self.pmc_id}_abstract_0"
                     )
                 )
 
@@ -407,6 +411,7 @@ class JATSParser:
                     paragraph_index=paragraph_counter,
                     chunk_type="paragraph",
                     citations=citation_ids,
+                    chunk_id=f"{self.pmc_id}_{parent_section}_{paragraph_counter}"
                 )
             )
             paragraph_counter += 1

@@ -95,7 +95,17 @@ services:
     profiles:
       - ingestion
 
+  redis:
+    image: redis:7.2.4
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
 volumes:
+  redis_data:
+    driver: local
   opensearch-data:
     driver: local
   localstack-data:
