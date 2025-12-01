@@ -330,7 +330,10 @@ class PaperIndexingPipeline:
             aws_region (str): AWS region for Bedrock and OpenSearch (if using AWS). Defaults to 'us-east-1'.
             index_name (str): Name of the OpenSearch index. Defaults to 'medical-papers'.
         """
-        self.embedder = EmbeddingGenerator(region_name=aws_region)
+        # Use Redis cache if available
+        cache = EmbeddingCache("redis://localhost:6379")
+
+        self.embedder = EmbeddingGenerator(region_name=aws_region, cache=cache)
         self.indexer = OpenSearchIndexer(
             host=opensearch_host,
             port=opensearch_port,
@@ -346,8 +349,6 @@ class PaperIndexingPipeline:
             print("Warning: reference_entities.jsonl not found, using empty collection")
             entity_collection = EntityCollection()
 
-        # Use Redis cache if available (EmbeddingGenerator might have initialized it)
-        cache = EmbeddingCache("redis://localhost:6379")
         self.entity_extractor = EntityExtractor(entity_collection, cache)
 
     def process_paper(self, paper: ParsedPaper) -> Dict[str, int]:

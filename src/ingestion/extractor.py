@@ -6,6 +6,7 @@ from src.ingestion.embedding_cache import EmbeddingCache
 from src.ingestion.embedding_generator import EmbeddingGenerator
 from src.ingestion.jats_parser import JATSParser
 from src.ingestion.s3_writer import S3PaperWriter
+from flashtext import KeywordProcessor
 
 
 class EntityExtractor:
@@ -44,8 +45,8 @@ class EntityExtractor:
         self._build_lookup_index()
 
     def _build_lookup_index(self):
-        """Pre-build index of all entity names/synonyms for fast lookup"""
-        self.lookup = {}  # normalized_text -> (entity_id, entity_type)
+        """Pre-build FlashText processor for fast entity extraction"""
+        self.keyword_processor = KeywordProcessor(case_sensitive=False)
 
         for entity_type, collection in [
             ("disease", self.entities.diseases),
@@ -54,18 +55,23 @@ class EntityExtractor:
             ("protein", self.entities.proteins),
         ]:
             for entity in collection.values():
-                variants = [entity.name] + entity.synonyms + entity.abbreviations
-                for variant in variants:
-                    normalized = variant.lower().strip()
-                    if len(normalized) > 2:  # Skip very short strings
-                        self.lookup[normalized] = (entity.entity_id, entity_type)
+                # We use a composite key of "id|type" as the clean name
+                clean_name = f"{entity.entity_id}|{entity_type}"
+
+                # Add canonical name
+                self.keyword_processor.add_keyword(entity.name, clean_name)
+
+                # Add synonyms and abbreviations
+                for variant in entity.synonyms + entity.abbreviations:
+                    if len(variant) > 2:  # Skip very short strings
+                        self.keyword_processor.add_keyword(variant, clean_name)
 
     def extract_entities(self, text: str, chunk_id: str) -> List[ExtractedEntity]:
-        """Extract biomedical entities from text using string matching.
+        """Extract biomedical entities from text using FlashText.
 
         Performs entity recognition by matching text against known entity names,
-        synonyms, and abbreviations from the reference entity collection. Currently
-        uses exact string matching (case-insensitive).
+        synonyms, and abbreviations using the Aho-Corasick algorithm (via FlashText).
+        This is O(N) with respect to text length, regardless of number of keywords.
 
         Args:
             text: The text to extract entities from.
@@ -73,46 +79,27 @@ class EntityExtractor:
 
         Returns:
             List of extracted entities with their positions, types, and canonical IDs.
-
-        Note:
-            V1: Uses simple noun phrase extraction and entity linking.
-            V2 (planned): Will add scispacy/biobert NER for improved accuracy.
-
-        Example:
-            >>> text = "Patients with diabetes may develop neuropathy."
-            >>> entities = extractor.extract_entities(text, "chunk_123")
-            >>> print(entities[0].mention_text)  # "diabetes"
-            >>> print(entities[0].entity_type)  # "disease"
         """
-        import re
-
         extracted = []
-        seen_positions = set()  # Avoid overlapping matches
 
-        # Try exact matches first (case-insensitive, word boundaries)
-        for variant, (entity_id, entity_type) in self.lookup.items():
-            # Use word boundaries to avoid partial matches
-            pattern = r"\b" + re.escape(variant) + r"\b"
-            for match in re.finditer(pattern, text, re.IGNORECASE):
-                start, end = match.span()
+        # extract_keywords returns list of (clean_name, start, end)
+        keywords_found = self.keyword_processor.extract_keywords(text, span_info=True)
 
-                # Check for overlap with existing matches
-                if any(start < e < end or start < s < end for s, e in seen_positions):
-                    continue
+        for clean_name, start, end in keywords_found:
+            entity_id, entity_type = clean_name.split("|")
 
-                seen_positions.add((start, end))
-                extracted.append(
-                    ExtractedEntity(
-                        mention_text=match.group(),
-                        canonical_id=entity_id,
-                        entity_type=entity_type,
-                        start_char=start,
-                        end_char=end,
-                        chunk_id=chunk_id,
-                        confidence=1.0,  # Exact match
-                        extraction_method="string_match",
-                    )
+            extracted.append(
+                ExtractedEntity(
+                    mention_text=text[start:end],
+                    canonical_id=entity_id,
+                    entity_type=entity_type,
+                    start_char=start,
+                    end_char=end,
+                    chunk_id=chunk_id,
+                    confidence=1.0,
+                    extraction_method="flashtext",
                 )
+            )
 
         return extracted
 

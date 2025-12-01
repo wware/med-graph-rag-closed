@@ -29,6 +29,7 @@ dependencies = [
     "ruff>=0.14.7",
     "redis>=7.1.0",
     "tqdm>=4.67.1",
+    "flashtext>=2.7",
 ]
 
 [project.scripts]
