@@ -63,8 +63,14 @@ class EntityExtractor:
 
                 # Add synonyms and abbreviations
                 for variant in entity.synonyms + entity.abbreviations:
-                    if len(variant) > 2:  # Skip very short strings
-                        self.keyword_processor.add_keyword(variant, clean_name)
+                    # For genes: only all-caps symbols (BRCA1, TP53, etc.)
+                    if entity_type == "gene":
+                        if variant == variant.upper() and len(variant) >= 2:
+                            self.keyword_processor.add_keyword(variant, clean_name)
+                    # For diseases and drugs: keep longer variants
+                    else:
+                        if len(variant) > 2:
+                            self.keyword_processor.add_keyword(variant, clean_name)
 
     def extract_entities(self, text: str, chunk_id: str) -> List[ExtractedEntity]:
         """Extract biomedical entities from text using FlashText.

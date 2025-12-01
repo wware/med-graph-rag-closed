@@ -59,13 +59,17 @@ class HGNCParser:
                     synonyms: List[str], chromosome: Optional[str],
                     entrez_id: Optional[str]) -> Gene:
         """Create a Gene entity from HGNC data."""
+        # Filter synonyms to only keep all-caps (likely gene symbols)
+        # This avoids matching common English words
+        filtered_synonyms = [s for s in synonyms if s.isupper()]
+        
         return Gene(
             entity_id=hgnc_id,
             hgnc_id=hgnc_id,
             name=name,
             symbol=symbol,
-            synonyms=synonyms,
-            abbreviations=[symbol],  # The symbol itself is the primary abbreviation
+            synonyms=filtered_synonyms,
+            abbreviations=[symbol] if symbol.isupper() else [],  # Only if symbol is all-caps
             chromosome=chromosome,
             entrez_id=entrez_id,
             source='hgnc',
