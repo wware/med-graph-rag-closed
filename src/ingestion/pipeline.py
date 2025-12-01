@@ -11,8 +11,11 @@ import pytest
 from typing import List, Dict, Any, Optional
 from pathlib import Path
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
-from jats_parser import ParsedPaper, PaperMetadata, Chunk
-from embedding_generator import EmbeddingGenerator
+from src.ingestion.jats_parser import ParsedPaper, PaperMetadata, Chunk
+from src.ingestion.embedding_generator import EmbeddingGenerator
+from src.ingestion.extractor import EntityExtractor
+from src.schema.entity import EntityCollection
+from src.ingestion.embedding_cache import EmbeddingCache
 from unittest.mock import patch, MagicMock
 
 
@@ -24,14 +27,16 @@ class OpenSearchIndexer:
         index_name (str): The name of the index.
     """
 
-    def __init__(self,
-                 host: Optional[str] = None,
-                 port: Optional[int] = None,
-                 region: str = 'us-east-1',
-                 index_name: str = 'medical-papers',
-                 create_index: bool = True,
-                 use_ssl: Optional[bool] = None,
-                 use_aws_auth: Optional[bool] = None):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        region: str = "us-east-1",
+        index_name: str = "medical-papers",
+        create_index: bool = True,
+        use_ssl: Optional[bool] = None,
+        use_aws_auth: Optional[bool] = None,
+    ):
         """Initialize OpenSearch client.
 
         Args:
@@ -44,11 +49,11 @@ class OpenSearchIndexer:
             use_aws_auth (Optional[bool]): Whether to use AWS auth. Auto-detected based on host if None.
         """
         # Get configuration from environment variables
-        host = host or os.getenv('OPENSEARCH_HOST', 'localhost')
-        port = port or int(os.getenv('OPENSEARCH_PORT', '9200'))
+        host = host or os.getenv("OPENSEARCH_HOST", "localhost")
+        port = port or int(os.getenv("OPENSEARCH_PORT", "9200"))
 
         # Auto-detect local vs AWS deployment
-        is_local = host in ('localhost', '127.0.0.1', 'opensearch') or port != 443
+        is_local = host in ("localhost", "127.0.0.1", "opensearch") or port != 443
 
         if use_ssl is None:
             use_ssl = not is_local
@@ -60,21 +65,23 @@ class OpenSearchIndexer:
         http_auth = None
         if use_aws_auth:
             credentials = boto3.Session().get_credentials()
-            http_auth = AWSV4SignerAuth(credentials, region, 'es')
+            http_auth = AWSV4SignerAuth(credentials, region, "es")
 
         # Create OpenSearch client
         self.client = OpenSearch(
-            hosts=[{'host': host, 'port': port}],
+            hosts=[{"host": host, "port": port}],
             http_auth=http_auth,
             use_ssl=use_ssl,
             verify_certs=use_ssl,
             connection_class=RequestsHttpConnection,
-            timeout=60
+            timeout=60,
         )
 
         self.index_name = index_name
 
-        print(f"Connected to OpenSearch at {host}:{port} (SSL: {use_ssl}, AWS Auth: {use_aws_auth})")
+        print(
+            f"Connected to OpenSearch at {host}:{port} (SSL: {use_ssl}, AWS Auth: {use_aws_auth})"
+        )
 
         if create_index:
             self._create_index_if_not_exists()
@@ -92,7 +99,7 @@ class OpenSearchIndexer:
                     "knn": True,  # Enable k-NN plugin
                     "knn.algo_param.ef_search": 512,
                     "number_of_shards": 2,
-                    "number_of_replicas": 1
+                    "number_of_replicas": 1,
                 }
             },
             "mappings": {
@@ -105,26 +112,16 @@ class OpenSearchIndexer:
                             "name": "hnsw",
                             "space_type": "cosinesimil",
                             "engine": "nmslib",
-                            "parameters": {
-                                "ef_construction": 512,
-                                "m": 16
-                            }
-                        }
+                            "parameters": {"ef_construction": 512, "m": 16},
+                        },
                     },
-
                     # Text fields for keyword search
-                    "chunk_text": {
-                        "type": "text",
-                        "analyzer": "standard"
-                    },
+                    "chunk_text": {"type": "text", "analyzer": "standard"},
                     "title": {
                         "type": "text",
                         "analyzer": "standard",
-                        "fields": {
-                            "keyword": {"type": "keyword"}
-                        }
+                        "fields": {"keyword": {"type": "keyword"}},
                     },
-
                     # Metadata fields
                     "paper_id": {"type": "keyword"},
                     "pmc_id": {"type": "keyword"},
@@ -134,12 +131,10 @@ class OpenSearchIndexer:
                     "subsection": {"type": "keyword"},
                     "chunk_type": {"type": "keyword"},
                     "paragraph_index": {"type": "integer"},
-
                     # Author and journal
                     "authors": {"type": "text"},
                     "journal": {"type": "keyword"},
                     "publication_date": {"type": "date"},
-
                     # Medical terms
                     "mesh_terms": {"type": "keyword"},
                     "keywords": {"type": "keyword"},
@@ -148,17 +143,15 @@ class OpenSearchIndexer:
                         "properties": {
                             "text": {"type": "text"},
                             "type": {"type": "keyword"},
-                            "umls_id": {"type": "keyword"}
-                        }
+                            "umls_id": {"type": "keyword"},
+                        },
                     },
-
                     # Citations
                     "citations": {"type": "keyword"},
-
                     # Full abstract for context
-                    "abstract": {"type": "text"}
+                    "abstract": {"type": "text"},
                 }
-            }
+            },
         }
 
         self.client.indices.create(index=self.index_name, body=index_body)
@@ -179,15 +172,16 @@ class OpenSearchIndexer:
                 index=self.index_name,
                 id=doc_id,
                 body=document,
-                refresh=False  # Don't refresh immediately for better performance
+                refresh=False,  # Don't refresh immediately for better performance
             )
-            return response['result'] in ['created', 'updated']
+            return response["result"] in ["created", "updated"]
         except Exception as e:
             print(f"Error indexing document {doc_id}: {e}")
             return False
 
-    def bulk_index(self, documents: List[Dict[str, Any]],
-                   chunk_size: int = 500) -> Dict[str, int]:
+    def bulk_index(
+        self, documents: List[Dict[str, Any]], chunk_size: int = 500
+    ) -> Dict[str, int]:
         """Bulk index multiple documents.
 
         Args:
@@ -207,14 +201,14 @@ class OpenSearchIndexer:
         for doc in documents:
             action = {
                 "_index": self.index_name,
-                "_id": doc['id'],
-                "_source": doc['document']
+                "_id": doc["id"],
+                "_source": doc["document"],
             }
             actions.append(action)
 
         # Bulk index in chunks
         for i in range(0, len(actions), chunk_size):
-            chunk = actions[i:i + chunk_size]
+            chunk = actions[i : i + chunk_size]
 
             try:
                 response = helpers.bulk(self.client, chunk, raise_on_error=False)
@@ -230,12 +224,14 @@ class OpenSearchIndexer:
 
         return {"success": success, "failed": failed}
 
-    def search_hybrid(self,
-                     query_text: str,
-                     query_embedding: List[float],
-                     filters: Optional[Dict[str, Any]] = None,
-                     k: int = 10,
-                     vector_weight: float = 0.5) -> List[Dict[str, Any]]:
+    def search_hybrid(
+        self,
+        query_text: str,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
+        k: int = 10,
+        vector_weight: float = 0.5,
+    ) -> List[Dict[str, Any]]:
         """Perform hybrid search combining vector similarity and keyword matching.
 
         Args:
@@ -265,10 +261,10 @@ class OpenSearchIndexer:
                                     "params": {
                                         "field": "embedding",
                                         "query_value": query_embedding,
-                                        "space_type": "cosinesimil"
-                                    }
+                                        "space_type": "cosinesimil",
+                                    },
                                 },
-                                "boost": vector_weight
+                                "boost": vector_weight,
                             }
                         },
                         # Keyword search
@@ -277,12 +273,12 @@ class OpenSearchIndexer:
                                 "query": query_text,
                                 "fields": ["chunk_text^2", "title", "abstract"],
                                 "type": "best_fields",
-                                "boost": 1 - vector_weight
+                                "boost": 1 - vector_weight,
                             }
-                        }
+                        },
                     ]
                 }
-            }
+            },
         }
 
         # Add filters if provided
@@ -296,11 +292,11 @@ class OpenSearchIndexer:
             response = self.client.search(index=self.index_name, body=query)
 
             results = []
-            for hit in response['hits']['hits']:
+            for hit in response["hits"]["hits"]:
                 result = {
-                    'id': hit['_id'],
-                    'score': hit['_score'],
-                    'source': hit['_source']
+                    "id": hit["_id"],
+                    "score": hit["_score"],
+                    "source": hit["_source"],
                 }
                 results.append(result)
 
@@ -319,11 +315,13 @@ class PaperIndexingPipeline:
         indexer (OpenSearchIndexer): The OpenSearch indexer.
     """
 
-    def __init__(self,
-                 opensearch_host: Optional[str] = None,
-                 opensearch_port: Optional[int] = None,
-                 aws_region: str = 'us-east-1',
-                 index_name: str = 'medical-papers'):
+    def __init__(
+        self,
+        opensearch_host: Optional[str] = None,
+        opensearch_port: Optional[int] = None,
+        aws_region: str = "us-east-1",
+        index_name: str = "medical-papers",
+    ):
         """Initialize the pipeline.
 
         Args:
@@ -337,8 +335,20 @@ class PaperIndexingPipeline:
             host=opensearch_host,
             port=opensearch_port,
             region=aws_region,
-            index_name=index_name
+            index_name=index_name,
         )
+
+        # Initialize Entity Extractor
+        # Try to load reference entities, otherwise use empty collection
+        try:
+            entity_collection = EntityCollection.load("reference_entities.jsonl")
+        except Exception:
+            print("Warning: reference_entities.jsonl not found, using empty collection")
+            entity_collection = EntityCollection()
+
+        # Use Redis cache if available (EmbeddingGenerator might have initialized it)
+        cache = EmbeddingCache("redis://localhost:6379")
+        self.entity_extractor = EntityExtractor(entity_collection, cache)
 
     def process_paper(self, paper: ParsedPaper) -> Dict[str, int]:
         """Process a single paper: generate embeddings and index all chunks.
@@ -353,7 +363,9 @@ class PaperIndexingPipeline:
 
         # Generate embeddings for all chunks
         chunk_texts = [chunk.text for chunk in paper.chunks]
-        print(f"Generating {len(chunk_texts)} embeddings for paper {paper.metadata.pmc_id}")
+        print(
+            f"Generating {len(chunk_texts)} embeddings for paper {paper.metadata.pmc_id}"
+        )
 
         embeddings = self.embedder.embed_batch(chunk_texts)
 
@@ -364,7 +376,6 @@ class PaperIndexingPipeline:
             document = {
                 # Embedding
                 "embedding": embedding,
-
                 # Chunk content
                 "chunk_text": chunk.text,
                 "chunk_type": chunk.chunk_type,
@@ -372,7 +383,6 @@ class PaperIndexingPipeline:
                 "subsection": chunk.subsection,
                 "paragraph_index": chunk.paragraph_index,
                 "citations": chunk.citations,
-
                 # Paper metadata
                 "paper_id": paper.metadata.pmc_id,
                 "pmc_id": paper.metadata.pmc_id,
@@ -385,15 +395,18 @@ class PaperIndexingPipeline:
                 "publication_date": paper.metadata.publication_date,
                 "mesh_terms": paper.metadata.mesh_terms,
                 "keywords": paper.metadata.keywords,
-
-                # Placeholder for entities (to be filled by Comprehend Medical)
-                "entities": []
+                # Extracted Entities
+                "entities": [
+                    {
+                        "text": e.mention_text,
+                        "type": e.entity_type,
+                        "umls_id": e.canonical_id,
+                    }
+                    for e in self.entity_extractor.extract_entities(chunk.text, doc_id)
+                ],
             }
 
-            documents_to_index.append({
-                'id': doc_id,
-                'document': document
-            })
+            documents_to_index.append({"id": doc_id, "document": document})
 
         # Bulk index
         print(f"Indexing {len(documents_to_index)} chunks to OpenSearch")
@@ -418,8 +431,8 @@ class PaperIndexingPipeline:
 
             try:
                 result = self.process_paper(paper)
-                total_success += result['success']
-                total_failed += result['failed']
+                total_success += result["success"]
+                total_failed += result["failed"]
             except Exception as e:
                 print(f"Error processing paper {paper.metadata.pmc_id}: {e}")
                 total_failed += len(paper.chunks)
@@ -427,7 +440,7 @@ class PaperIndexingPipeline:
         return {
             "success": total_success,
             "failed": total_failed,
-            "papers_processed": len(papers)
+            "papers_processed": len(papers),
         }
 
 
@@ -439,46 +452,44 @@ def main():
     from .jats_parser import JATSParser
 
     parser = argparse.ArgumentParser(
-        description='Ingest and index medical papers from JATS XML files'
+        description="Ingest and index medical papers from JATS XML files"
     )
 
     parser.add_argument(
-        '--input-dir',
+        "--input-dir",
         required=True,
-        help='Input directory or glob pattern for XML files (e.g., "papers/*.xml")'
+        help='Input directory or glob pattern for XML files (e.g., "papers/*.xml")',
     )
     parser.add_argument(
-        '--batch-size',
+        "--batch-size",
         type=int,
         default=10,
-        help='Batch size for indexing (default: 10)'
+        help="Batch size for indexing (default: 10)",
     )
     parser.add_argument(
-        '--opensearch-host',
-        default=os.environ.get('OPENSEARCH_HOST'),
-        help='OpenSearch host (default: from env or localhost)'
+        "--opensearch-host",
+        default=os.environ.get("OPENSEARCH_HOST"),
+        help="OpenSearch host (default: from env or localhost)",
     )
     parser.add_argument(
-        '--opensearch-port',
+        "--opensearch-port",
         type=int,
-        default=int(os.environ.get('OPENSEARCH_PORT', '9200')),
-        help='OpenSearch port (default: from env or 9200)'
+        default=int(os.environ.get("OPENSEARCH_PORT", "9200")),
+        help="OpenSearch port (default: from env or 9200)",
     )
     parser.add_argument(
-        '--region',
-        default='us-east-1',
-        help='AWS region (default: us-east-1)'
+        "--region", default="us-east-1", help="AWS region (default: us-east-1)"
     )
 
     args = parser.parse_args()
 
     # Handle glob patterns
-    if '*' in args.input_dir:
+    if "*" in args.input_dir:
         files = glob.glob(args.input_dir)
     else:
         input_path = Path(args.input_dir)
         if input_path.is_dir():
-            files = list(input_path.glob('*.xml'))
+            files = list(input_path.glob("*.xml"))
         else:
             files = [str(input_path)]
 
@@ -492,7 +503,7 @@ def main():
     pipeline = PaperIndexingPipeline(
         opensearch_host=args.opensearch_host,
         opensearch_port=args.opensearch_port,
-        aws_region=args.region
+        aws_region=args.region,
     )
 
     # Process papers
@@ -506,8 +517,8 @@ def main():
             paper = parser.parse()
 
             result = pipeline.process_paper(paper)
-            success_count += result['success']
-            failed_count += result['failed']
+            success_count += result["success"]
+            failed_count += result["failed"]
 
         except Exception as e:
             print(f"Failed to process {file_path}: {e}")
@@ -519,16 +530,18 @@ def main():
     print(f"Chunks indexed: {success_count}")
     print(f"Chunks failed: {failed_count}")
 
+
 ### pytest ###
+
 
 @pytest.fixture
 def mock_opensearch_client():
     """Fixture providing a mocked OpenSearch client"""
-    with patch('opensearchpy.OpenSearch') as mock:
+    with patch("src.ingestion.pipeline.OpenSearch") as mock:
         mock_instance = MagicMock()
         mock.return_value = mock_instance
         mock_instance.indices.exists.return_value = False
-        mock_instance.indices.create.return_value = {'acknowledged': True}
+        mock_instance.indices.create.return_value = {"acknowledged": True}
         yield mock_instance
 
 
@@ -546,9 +559,9 @@ def sample_paper():
         journal="Test Journal",
         publication_date="2024-01-01",
         mesh_terms=["Test Term"],
-        keywords=["test", "paper"]
+        keywords=["test", "paper"],
     )
-    
+
     chunks = [
         Chunk(
             text="Test chunk 1",
@@ -556,7 +569,7 @@ def sample_paper():
             subsection=None,
             paragraph_index=0,
             chunk_type="paragraph",
-            citations=[]
+            citations=[],
         ),
         Chunk(
             text="Test chunk 2",
@@ -564,274 +577,266 @@ def sample_paper():
             subsection=None,
             paragraph_index=1,
             chunk_type="paragraph",
-            citations=["ref1"]
-        )
+            citations=["ref1"],
+        ),
     ]
-    
+
     return ParsedPaper(
         metadata=metadata,
         chunks=chunks,
         tables=[],
         references={},
-        full_text="Test full text"
+        full_text="Test full text",
     )
 
 
 class TestOpenSearchIndexer:
-    
+
     def test_init_local_deployment(self, mock_opensearch_client):
         """Test initialization for local OpenSearch"""
-        indexer = OpenSearchIndexer(
-            host='localhost',
-            port=9200,
-            create_index=False
-        )
-        
-        assert indexer.index_name == 'medical-papers'
+        indexer = OpenSearchIndexer(host="localhost", port=9200, create_index=False)
+
+        assert indexer.index_name == "medical-papers"
         assert indexer.client is not None
-    
-    
+
     def test_init_aws_deployment(self):
         """Test initialization for AWS OpenSearch"""
-        with patch('opensearchpy.OpenSearch') as mock_os, \
-             patch('boto3.Session') as mock_session:
-            
+        with (
+            patch("src.ingestion.pipeline.OpenSearch") as mock_os,
+            patch("boto3.Session") as mock_session,
+        ):
+
             mock_creds = MagicMock()
             mock_session.return_value.get_credentials.return_value = mock_creds
-            
+
             OpenSearchIndexer(
-                host='search-domain.us-east-1.es.amazonaws.com',
+                host="search-domain.us-east-1.es.amazonaws.com",
                 port=443,
                 create_index=False,
                 use_ssl=True,
-                use_aws_auth=True
+                use_aws_auth=True,
             )
-            
+
             # Verify AWS auth was configured
             mock_session.return_value.get_credentials.assert_called_once()
-    
-    
+
     def test_create_index_if_not_exists(self, mock_opensearch_client):
         """Test index creation when it doesn't exist"""
         mock_opensearch_client.indices.exists.return_value = False
-        
+
         OpenSearchIndexer(create_index=True)
-        
+
         mock_opensearch_client.indices.create.assert_called_once()
         call_args = mock_opensearch_client.indices.create.call_args
-        assert call_args.kwargs['index'] == 'medical-papers'
-        assert 'embedding' in call_args.kwargs['body']['mappings']['properties']
-    
-    
+        assert call_args.kwargs["index"] == "medical-papers"
+        assert "embedding" in call_args.kwargs["body"]["mappings"]["properties"]
+
     def test_skip_index_creation_if_exists(self, mock_opensearch_client):
         """Test that index creation is skipped if index exists"""
         mock_opensearch_client.indices.exists.return_value = True
-        
+
         indexer = OpenSearchIndexer(create_index=True)
-        
+
         mock_opensearch_client.indices.create.assert_not_called()
-    
-    
+
     def test_index_document_success(self, mock_opensearch_client):
         """Test successful document indexing"""
-        mock_opensearch_client.index.return_value = {'result': 'created'}
-        
+        mock_opensearch_client.index.return_value = {"result": "created"}
+
         indexer = OpenSearchIndexer(create_index=False)
         document = {
-            'embedding': [0.1] * 1024,
-            'chunk_text': 'Test text',
-            'pmc_id': 'PMC123'
+            "embedding": [0.1] * 1024,
+            "chunk_text": "Test text",
+            "pmc_id": "PMC123",
         }
-        
-        result = indexer.index_document('doc1', document)
-        
+
+        result = indexer.index_document("doc1", document)
+
         assert result is True
         mock_opensearch_client.index.assert_called_once()
-    
-    
+
     def test_index_document_failure(self, mock_opensearch_client):
         """Test document indexing failure handling"""
         mock_opensearch_client.index.side_effect = Exception("Index error")
-        
-        OpenSearchIndexer(create_index=False)
-        document = {'embedding': [0.1] * 1024}
-        
-        result = OpenSearchIndexer.index_document('doc1', document)
-        
+
+        indexer = OpenSearchIndexer(create_index=False)
+        document = {"embedding": [0.1] * 1024}
+
+        result = indexer.index_document("doc1", document)
+
         assert result is False
-    
-    
+
     def test_bulk_index(self, mock_opensearch_client):
         """Test bulk indexing of multiple documents"""
-        with patch('opensearchpy.helpers.bulk') as mock_bulk:
+        with patch("opensearchpy.helpers.bulk") as mock_bulk:
             mock_bulk.return_value = (3, [])  # 3 successful, 0 failed
-            
+
             indexer = OpenSearchIndexer(create_index=False)
             documents = [
-                {'id': 'doc1', 'document': {'embedding': [0.1] * 1024}},
-                {'id': 'doc2', 'document': {'embedding': [0.2] * 1024}},
-                {'id': 'doc3', 'document': {'embedding': [0.3] * 1024}}
+                {"id": "doc1", "document": {"embedding": [0.1] * 1024}},
+                {"id": "doc2", "document": {"embedding": [0.2] * 1024}},
+                {"id": "doc3", "document": {"embedding": [0.3] * 1024}},
             ]
-            
+
             result = indexer.bulk_index(documents)
-            
-            assert result['success'] == 3
-            assert result['failed'] == 0
-    
-    
+
+            assert result["success"] == 3
+            assert result["failed"] == 0
+
     def test_bulk_index_with_failures(self, mock_opensearch_client):
         """Test bulk indexing with some failures"""
-        with patch('opensearchpy.helpers.bulk') as mock_bulk:
-            mock_bulk.return_value = (2, [{'index': {'error': 'test error'}}])
-            
+        with patch("opensearchpy.helpers.bulk") as mock_bulk:
+            mock_bulk.return_value = (2, [{"index": {"error": "test error"}}])
+
             indexer = OpenSearchIndexer(create_index=False)
             documents = [
-                {'id': 'doc1', 'document': {'embedding': [0.1] * 1024}},
-                {'id': 'doc2', 'document': {'embedding': [0.2] * 1024}},
-                {'id': 'doc3', 'document': {'embedding': [0.3] * 1024}}
+                {"id": "doc1", "document": {"embedding": [0.1] * 1024}},
+                {"id": "doc2", "document": {"embedding": [0.2] * 1024}},
+                {"id": "doc3", "document": {"embedding": [0.3] * 1024}},
             ]
-            
+
             result = indexer.bulk_index(documents)
-            
-            assert result['success'] == 2
-            assert result['failed'] == 1
-    
-    
+
+            assert result["success"] == 2
+            assert result["failed"] == 1
+
     def test_search_hybrid(self, mock_opensearch_client):
         """Test hybrid search functionality"""
         mock_opensearch_client.search.return_value = {
-            'hits': {
-                'hits': [
+            "hits": {
+                "hits": [
                     {
-                        '_id': 'doc1',
-                        '_score': 0.95,
-                        '_source': {'chunk_text': 'Test result'}
+                        "_id": "doc1",
+                        "_score": 0.95,
+                        "_source": {"chunk_text": "Test result"},
                     }
                 ]
             }
         }
-        
+
         indexer = OpenSearchIndexer(create_index=False)
         results = indexer.search_hybrid(
-            query_text="test query",
-            query_embedding=[0.1] * 1024,
-            k=10
+            query_text="test query", query_embedding=[0.1] * 1024, k=10
         )
-        
+
         assert len(results) == 1
-        assert results[0]['id'] == 'doc1'
-        assert results[0]['score'] == 0.95
-    
-    
+        assert results[0]["id"] == "doc1"
+        assert results[0]["score"] == 0.95
+
     def test_search_with_filters(self, mock_opensearch_client):
         """Test search with metadata filters"""
-        mock_opensearch_client.search.return_value = {
-            'hits': {'hits': []}
-        }
-        
+        mock_opensearch_client.search.return_value = {"hits": {"hits": []}}
+
         indexer = OpenSearchIndexer(create_index=False)
         indexer.search_hybrid(
             query_text="test",
             query_embedding=[0.1] * 1024,
-            filters={'section': 'methods', 'journal': 'Nature'}
+            filters={"section": "methods", "journal": "Nature"},
         )
-        
+
         call_args = mock_opensearch_client.search.call_args
-        query = call_args.kwargs['body']['query']
-        
-        assert 'filter' in query['bool']
-        assert len(query['bool']['filter']) == 2
+        query = call_args.kwargs["body"]["query"]
+
+        assert "filter" in query["bool"]
+        assert len(query["bool"]["filter"]) == 2
 
 
 class TestPaperIndexingPipeline:
-    
+
     def test_init(self):
         """Test pipeline initialization"""
-        with patch('boto3.client'), \
-             patch('opensearchpy.OpenSearch'):
-            
+        with patch("boto3.client"), patch("src.ingestion.pipeline.OpenSearch"):
+
             pipeline = PaperIndexingPipeline(
-                opensearch_host='localhost',
-                opensearch_port=9200
+                opensearch_host="localhost", opensearch_port=9200
             )
-            
+
             assert pipeline.embedder is not None
             assert pipeline.indexer is not None
-    
-    
+
     def test_process_paper(self, sample_paper):
         """Test processing a single paper"""
-        with patch('boto3.client') as mock_bedrock, \
-             patch('opensearchpy.OpenSearch'), \
-             patch('opensearchpy.helpers.bulk') as mock_bulk:
-            
+        with (
+            patch("boto3.client") as mock_bedrock,
+            patch("src.ingestion.pipeline.OpenSearch"),
+            patch("opensearchpy.helpers.bulk") as mock_bulk,
+        ):
+
             # Mock embedding generation
             mock_response = {
-                'body': MagicMock(read=lambda: '{"embedding": ' + str([0.1] * 1024) + '}')
+                "body": MagicMock(
+                    read=lambda: '{"embedding": ' + str([0.1] * 1024) + "}"
+                )
             }
             mock_bedrock.return_value.invoke_model.return_value = mock_response
-            
+
             # Mock bulk indexing
             mock_bulk.return_value = (2, [])
-            
+
             pipeline = PaperIndexingPipeline()
             result = pipeline.process_paper(sample_paper)
-            
-            assert result['success'] == 2
-            assert result['failed'] == 0
-    
-    
+
+            assert result["success"] == 2
+            assert result["failed"] == 0
+
     def test_process_papers_batch(self, sample_paper):
         """Test batch processing of multiple papers"""
-        with patch('boto3.client') as mock_bedrock, \
-             patch('opensearchpy.OpenSearch'), \
-             patch('opensearchpy.helpers.bulk') as mock_bulk:
-            
+        with (
+            patch("boto3.client") as mock_bedrock,
+            patch("src.ingestion.pipeline.OpenSearch"),
+            patch("opensearchpy.helpers.bulk") as mock_bulk,
+        ):
+
             mock_response = {
-                'body': MagicMock(read=lambda: '{"embedding": ' + str([0.1] * 1024) + '}')
+                "body": MagicMock(
+                    read=lambda: '{"embedding": ' + str([0.1] * 1024) + "}"
+                )
             }
             mock_bedrock.return_value.invoke_model.return_value = mock_response
             mock_bulk.return_value = (2, [])
-            
+
             pipeline = PaperIndexingPipeline()
             papers = [sample_paper, sample_paper]
-            
+
             result = pipeline.process_papers_batch(papers)
-            
-            assert result['success'] == 4  # 2 chunks × 2 papers
-            assert result['papers_processed'] == 2
-    
-    
+
+            assert result["success"] == 4  # 2 chunks × 2 papers
+            assert result["papers_processed"] == 2
+
     def test_process_paper_error_handling(self, sample_paper):
         """Test error handling when processing fails"""
-        with patch('boto3.client') as mock_bedrock, \
-             patch('opensearchpy.OpenSearch'), \
-             patch('opensearchpy.helpers.bulk'):
-            
-            mock_bedrock.return_value.invoke_model.side_effect = Exception("Bedrock error")
-            
+        with (
+            patch("boto3.client") as mock_bedrock,
+            patch("opensearchpy.OpenSearch"),
+            patch("opensearchpy.helpers.bulk"),
+        ):
+
+            mock_bedrock.return_value.invoke_model.side_effect = Exception(
+                "Bedrock error"
+            )
+
             pipeline = PaperIndexingPipeline()
-            
+
             # Should not raise, but return failure count
             result = pipeline.process_papers_batch([sample_paper])
-            
-            assert result['failed'] == 2  # Both chunks failed
+
+            assert result["failed"] == 2  # Both chunks failed
 
 
 def test_environment_variable_defaults():
     """Test that environment variables are respected"""
-    with patch.dict(os.environ, {
-        'OPENSEARCH_HOST': 'custom-host',
-        'OPENSEARCH_PORT': '9999'
-    }):
-        with patch('opensearchpy.OpenSearch'):
+    with patch.dict(
+        os.environ, {"OPENSEARCH_HOST": "custom-host", "OPENSEARCH_PORT": "9999"}
+    ):
+        with patch("opensearchpy.OpenSearch"):
             OpenSearchIndexer(create_index=False)
-            
+
             # Verify the environment variables were used
             assert True  # The mock would fail if wrong values were passed
 
 
-
-if __name__ == '__main__':
-    pytest.main([__file__])
-    # main()
+if __name__ == "__main__":
+    if os.getenv("TEST", "0").lower() in ("1", "yes", "true"):
+        pytest.main([__file__])
+    else:
+        main()

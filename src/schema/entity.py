@@ -587,7 +587,11 @@ class EntityCollection(BaseModel):
                 ("pathway", self.pathways),
             ]:
                 for entity in collection.values():
-                    record = {"type": entity_type, "data": entity.model_dump()}
+                    data = entity.model_dump()
+                    # Convert datetime to ISO string for JSON serialization
+                    if isinstance(data.get("created_at"), datetime):
+                        data["created_at"] = data["created_at"].isoformat()
+                    record = {"type": entity_type, "data": data}
                     f.write(json.dumps(record) + "\n")
 
     @classmethod
@@ -628,9 +632,9 @@ class EntityCollection(BaseModel):
 
         return collection
 
-    def find_by_embedding(self, query_embedding: List[float],
-                         top_k: int = 5,
-                         threshold: float = 0.85) -> List[Tuple[BaseMedicalEntity, float]]:
+    def find_by_embedding(
+        self, query_embedding: List[float], top_k: int = 5, threshold: float = 0.85
+    ) -> List[Tuple[BaseMedicalEntity, float]]:
         """
         Find entities similar to query embedding.
         Returns list of (entity, similarity_score) tuples.
@@ -646,8 +650,9 @@ class EntityCollection(BaseModel):
                     continue
 
                 # Cosine similarity
-                similarity = dot(query_embedding, entity.embedding_titan_v2) / \
-                            (norm(query_embedding) * norm(entity.embedding_titan_v2))
+                similarity = dot(query_embedding, entity.embedding_titan_v2) / (
+                    norm(query_embedding) * norm(entity.embedding_titan_v2)
+                )
 
                 if similarity >= threshold:
                     results.append((entity, similarity))
