@@ -362,7 +362,7 @@ class JATSParser:
                         paragraph_index=0,
                         chunk_type="abstract",
                         citations=[],
-                        chunk_id=f"{self.pmc_id}_abstract_0"
+                        chunk_id=f"{self.pmc_id}_abstract_0",
                     )
                 )
 
@@ -411,7 +411,7 @@ class JATSParser:
                     paragraph_index=paragraph_counter,
                     chunk_type="paragraph",
                     citations=citation_ids,
-                    chunk_id=f"{self.pmc_id}_{parent_section}_{paragraph_counter}"
+                    chunk_id=f"{self.pmc_id}_{parent_section}_{paragraph_counter}",
                 )
             )
             paragraph_counter += 1
@@ -625,7 +625,9 @@ def test_pnas_parsing():
     }
     assert paper.metadata.publication_date == "2001-08-28"
     assert paper.metadata.mesh_terms == []
-    assert paper.chunks[0].text.startswith("We explore the impact of a host genetic factor")
+    assert paper.chunks[0].text.startswith(
+        "We explore the impact of a host genetic factor"
+    )
     assert paper.chunks[1].text.startswith("Because we are most concerned with")
     assert len(paper.tables) == 4
     assert paper.tables[0].label == "Table 1"

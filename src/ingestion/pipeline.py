@@ -15,7 +15,11 @@ from src.ingestion.jats_parser import ParsedPaper, PaperMetadata, Chunk
 from src.ingestion.embedding_generator import EmbeddingGenerator
 
 # from src.ingestion.extractor import EntityExtractor
-from src.ingestion.hybrid_extractor import HybridExtractor, FlashTextExtractor, BioBERTExtractor
+from src.ingestion.hybrid_extractor import (
+    HybridExtractor,
+    FlashTextExtractor,
+    BioBERTExtractor,
+)
 from src.schema.entity import EntityCollection
 from src.ingestion.embedding_cache import EmbeddingCache
 from unittest.mock import patch, MagicMock
@@ -385,7 +389,9 @@ class PaperIndexingPipeline:
                 entities = self.bio_bert_extractor.extract_entities(chunk.text, doc_id)
             else:
                 # Use only FlashText for non-abstract sections (faster)
-                entities = self.flash_text_extractor.extract_entities(chunk.text, doc_id)
+                entities = self.flash_text_extractor.extract_entities(
+                    chunk.text, doc_id
+                )
 
             document = {
                 # Embedding

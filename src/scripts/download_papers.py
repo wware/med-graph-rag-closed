@@ -27,6 +27,7 @@ class PaperMetadata(BaseModel):
         pub_date (str): Publication date.
         doi (Optional[str]): DOI.
     """
+
     pmc_id: str
     pmid: Optional[str]
     title: str
@@ -55,11 +56,13 @@ class PubMedCentralFetcher:
     BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     PMC_OA_FTP = "https://ftp.ncbi.nlm.nih.gov/pub/pmc"
 
-    def __init__(self,
-                 email: str,
-                 api_key: Optional[str] = None,
-                 tool: str = "medical_knowledge_graph",
-                 rate_limit: float = 0.34):
+    def __init__(
+        self,
+        email: str,
+        api_key: Optional[str] = None,
+        tool: str = "medical_knowledge_graph",
+        rate_limit: float = 0.34,
+    ):
         """Initialize the fetcher.
 
         Args:
@@ -98,10 +101,10 @@ class PubMedCentralFetcher:
         self._rate_limit_wait()
 
         # Add required parameters
-        params['email'] = self.email
-        params['tool'] = self.tool
+        params["email"] = self.email
+        params["tool"] = self.tool
         if self.api_key:
-            params['api_key'] = self.api_key
+            params["api_key"] = self.api_key
 
         url = f"{self.BASE_URL}/{endpoint}"
 
@@ -113,12 +116,14 @@ class PubMedCentralFetcher:
             print(f"Error making request to {endpoint}: {e}")
             raise
 
-    def search_papers(self,
-                     query: str,
-                     max_results: int = 100,
-                     start_date: Optional[str] = None,
-                     end_date: Optional[str] = None,
-                     sort: str = "relevance") -> List[str]:
+    def search_papers(
+        self,
+        query: str,
+        max_results: int = 100,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        sort: str = "relevance",
+    ) -> List[str]:
         """Search PubMed Central for papers matching query.
 
         Args:
@@ -139,18 +144,18 @@ class PubMedCentralFetcher:
             search_query += f" AND {date_range}[pdat]"
 
         params = {
-            'db': 'pmc',
-            'term': search_query,
-            'retmax': max_results,
-            'retmode': 'json',
-            'sort': sort
+            "db": "pmc",
+            "term": search_query,
+            "retmax": max_results,
+            "retmode": "json",
+            "sort": sort,
         }
 
         print(f"Searching PMC: {search_query}")
-        response = self._make_request('esearch.fcgi', params)
+        response = self._make_request("esearch.fcgi", params)
 
         data = response.json()
-        id_list = data.get('esearchresult', {}).get('idlist', [])
+        id_list = data.get("esearchresult", {}).get("idlist", [])
 
         print(f"Found {len(id_list)} papers")
         return id_list
@@ -172,18 +177,14 @@ class PubMedCentralFetcher:
         all_metadata = []
 
         for i in range(0, len(pmc_ids), batch_size):
-            batch = pmc_ids[i:i + batch_size]
+            batch = pmc_ids[i : i + batch_size]
 
-            params = {
-                'db': 'pmc',
-                'id': ','.join(batch),
-                'retmode': 'json'
-            }
+            params = {"db": "pmc", "id": ",".join(batch), "retmode": "json"}
 
-            response = self._make_request('esummary.fcgi', params)
+            response = self._make_request("esummary.fcgi", params)
             data = response.json()
 
-            result = data.get('result', {})
+            result = data.get("result", {})
 
             for pmc_id in batch:
                 if pmc_id not in result:
@@ -193,19 +194,19 @@ class PubMedCentralFetcher:
 
                 # Extract authors
                 authors = []
-                for author in paper_data.get('authors', []):
-                    name = author.get('name', '')
+                for author in paper_data.get("authors", []):
+                    name = author.get("name", "")
                     if name:
                         authors.append(name)
 
                 metadata = PaperMetadata(
                     pmc_id=pmc_id,
-                    pmid=paper_data.get('uid'),  # Sometimes this is PMID
-                    title=paper_data.get('title', ''),
+                    pmid=paper_data.get("uid"),  # Sometimes this is PMID
+                    title=paper_data.get("title", ""),
                     authors=authors,
-                    journal=paper_data.get('fulljournalname', ''),
-                    pub_date=paper_data.get('pubdate', ''),
-                    doi=paper_data.get('elocationid', '')  # Sometimes this is DOI
+                    journal=paper_data.get("fulljournalname", ""),
+                    pub_date=paper_data.get("pubdate", ""),
+                    doi=paper_data.get("elocationid", ""),  # Sometimes this is DOI
                 )
 
                 all_metadata.append(metadata)
@@ -235,14 +236,10 @@ class PubMedCentralFetcher:
             return output_file
 
         # Use EFetch to get the full XML
-        params = {
-            'db': 'pmc',
-            'id': pmc_id,
-            'retmode': 'xml'
-        }
+        params = {"db": "pmc", "id": pmc_id, "retmode": "xml"}
 
         try:
-            response = self._make_request('efetch.fcgi', params)
+            response = self._make_request("efetch.fcgi", params)
 
             # Parse to verify it's valid XML
             try:
@@ -252,7 +249,7 @@ class PubMedCentralFetcher:
                 return None
 
             # Save to file
-            with open(output_file, 'wb') as f:
+            with open(output_file, "wb") as f:
                 f.write(response.content)
 
             print(f"Downloaded PMC{pmc_id}")
@@ -262,10 +259,9 @@ class PubMedCentralFetcher:
             print(f"Error downloading PMC{pmc_id}: {e}")
             return None
 
-    def download_papers_batch(self,
-                              pmc_ids: List[str],
-                              output_dir: Path,
-                              save_metadata: bool = True) -> Dict[str, int]:
+    def download_papers_batch(
+        self, pmc_ids: List[str], output_dir: Path, save_metadata: bool = True
+    ) -> Dict[str, int]:
         """Download multiple papers.
 
         Args:
@@ -289,18 +285,23 @@ class PubMedCentralFetcher:
             metadata_list = self.get_paper_metadata(pmc_ids)
             metadata_file = output_dir / "papers_metadata.json"
 
-            with open(metadata_file, 'w') as f:
-                json.dump([
-                    {
-                        'pmc_id': m.pmc_id,
-                        'pmid': m.pmid,
-                        'title': m.title,
-                        'authors': m.authors,
-                        'journal': m.journal,
-                        'pub_date': m.pub_date,
-                        'doi': m.doi
-                    } for m in metadata_list
-                ], f, indent=2)
+            with open(metadata_file, "w") as f:
+                json.dump(
+                    [
+                        {
+                            "pmc_id": m.pmc_id,
+                            "pmid": m.pmid,
+                            "title": m.title,
+                            "authors": m.authors,
+                            "journal": m.journal,
+                            "pub_date": m.pub_date,
+                            "doi": m.doi,
+                        }
+                        for m in metadata_list
+                    ],
+                    f,
+                    indent=2,
+                )
 
             print(f"Saved metadata to {metadata_file}")
 
@@ -322,22 +323,20 @@ class PubMedCentralFetcher:
 
         # Save list of downloaded files
         files_list = output_dir / "downloaded_files.txt"
-        with open(files_list, 'w') as f:
+        with open(files_list, "w") as f:
             for file_path in downloaded_files:
                 f.write(f"{file_path}\n")
 
-        return {
-            "success": success,
-            "failed": failed,
-            "total": len(pmc_ids)
-        }
+        return {"success": success, "failed": failed, "total": len(pmc_ids)}
 
-    def search_and_download(self,
-                           query: str,
-                           output_dir: Path,
-                           max_results: int = 100,
-                           start_date: Optional[str] = None,
-                           end_date: Optional[str] = None) -> Dict[str, int]:
+    def search_and_download(
+        self,
+        query: str,
+        output_dir: Path,
+        max_results: int = 100,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> Dict[str, int]:
         """Search for papers and download them in one operation.
 
         Args:
@@ -355,7 +354,7 @@ class PubMedCentralFetcher:
             query=query,
             max_results=max_results,
             start_date=start_date,
-            end_date=end_date
+            end_date=end_date,
         )
 
         if not pmc_ids:
@@ -393,24 +392,26 @@ class PMCBulkDownloader:
         response.raise_for_status()
 
         papers = []
-        lines = response.text.strip().split('\n')
+        lines = response.text.strip().split("\n")
 
         # Skip header line
         for line in lines[1:]:
-            parts = line.split('\t')
+            parts = line.split("\t")
             if len(parts) >= 3:
-                papers.append({
-                    'path': parts[0],  # e.g., "oa_comm/xml/PMC13900.tar.gz"
-                    'journal': parts[1],
-                    'pmid': parts[2] if len(parts) > 2 else None
-                })
+                papers.append(
+                    {
+                        "path": parts[0],  # e.g., "oa_comm/xml/PMC13900.tar.gz"
+                        "journal": parts[1],
+                        "pmid": parts[2] if len(parts) > 2 else None,
+                    }
+                )
 
         print(f"Found {len(papers)} open access papers")
         return papers
 
-    def filter_by_journals(self,
-                          papers: List[Dict[str, str]],
-                          journals: List[str]) -> List[Dict[str, str]]:
+    def filter_by_journals(
+        self, papers: List[Dict[str, str]], journals: List[str]
+    ) -> List[Dict[str, str]]:
         """Filter papers by journal name.
 
         Args:
@@ -423,8 +424,7 @@ class PMCBulkDownloader:
         journals_lower = [j.lower() for j in journals]
 
         filtered = [
-            p for p in papers
-            if any(j in p['journal'].lower() for j in journals_lower)
+            p for p in papers if any(j in p["journal"].lower() for j in journals_lower)
         ]
 
         print(f"Filtered to {len(filtered)} papers from specified journals")
@@ -440,10 +440,7 @@ def example_usage():
     OUTPUT_DIR = Path("./pmc_papers")
 
     # Initialize fetcher
-    fetcher = PubMedCentralFetcher(
-        email=EMAIL,
-        api_key=API_KEY
-    )
+    fetcher = PubMedCentralFetcher(email=EMAIL, api_key=API_KEY)
 
     # Example 1: Search and download papers on a specific topic
     print("=" * 60)
@@ -454,7 +451,7 @@ def example_usage():
         query="breast cancer BRCA1",
         output_dir=OUTPUT_DIR / "brca1_papers",
         max_results=50,
-        start_date="2020/01/01"  # Papers from 2020 onwards
+        start_date="2020/01/01",  # Papers from 2020 onwards
     )
 
     print(f"\nResults: {result}")
@@ -465,8 +462,7 @@ def example_usage():
     print("=" * 60)
 
     pmc_ids = fetcher.search_papers(
-        query="diabetes mellitus treatment",
-        max_results=100
+        query="diabetes mellitus treatment", max_results=100
     )
 
     # Get metadata to review
@@ -479,8 +475,7 @@ def example_usage():
     # Download selected papers
     selected_ids = [m.pmc_id for m in metadata]
     result = fetcher.download_papers_batch(
-        pmc_ids=selected_ids,
-        output_dir=OUTPUT_DIR / "diabetes_papers"
+        pmc_ids=selected_ids, output_dir=OUTPUT_DIR / "diabetes_papers"
     )
 
     print(f"\nDownload results: {result}")
@@ -490,19 +485,12 @@ def example_usage():
     print("Example 3: Build oncology corpus")
     print("=" * 60)
 
-    oncology_queries = [
-        "breast cancer",
-        "lung cancer",
-        "colorectal cancer",
-        "melanoma"
-    ]
+    oncology_queries = ["breast cancer", "lung cancer", "colorectal cancer", "melanoma"]
 
     all_ids = set()
     for query in oncology_queries:
         ids = fetcher.search_papers(
-            query=query,
-            max_results=250,
-            start_date="2018/01/01"
+            query=query, max_results=250, start_date="2018/01/01"
         )
         all_ids.update(ids)
 
@@ -510,17 +498,18 @@ def example_usage():
 
     # Download them all
     result = fetcher.download_papers_batch(
-        pmc_ids=list(all_ids),
-        output_dir=OUTPUT_DIR / "oncology_corpus"
+        pmc_ids=list(all_ids), output_dir=OUTPUT_DIR / "oncology_corpus"
     )
 
     print(f"\nFinal corpus: {result}")
 
 
-def build_disease_corpus(disease: str,
-                        max_papers: int = 1000,
-                        output_dir: Path = Path("./corpus"),
-                        email: str = "your.email@example.com") -> Path:
+def build_disease_corpus(
+    disease: str,
+    max_papers: int = 1000,
+    output_dir: Path = Path("./corpus"),
+    email: str = "your.email@example.com",
+) -> Path:
     """Convenience function to build a disease-specific corpus.
 
     Args:
@@ -540,7 +529,7 @@ def build_disease_corpus(disease: str,
         query=disease,
         output_dir=corpus_dir,
         max_results=max_papers,
-        start_date="2015/01/01"  # Last 10 years
+        start_date="2015/01/01",  # Last 10 years
     )
 
     print(f"\nBuilt corpus for '{disease}':")
@@ -557,7 +546,7 @@ def main():
     import os
 
     parser = argparse.ArgumentParser(
-        description='Download papers from PubMed Central',
+        description="Download papers from PubMed Central",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -576,45 +565,35 @@ Examples:
 
   # Run examples
   python -m src.scripts.download_papers --examples
-        """
+        """,
     )
 
+    parser.add_argument("--query", help='Search query (e.g., "breast cancer BRCA1")')
     parser.add_argument(
-        '--query',
-        help='Search query (e.g., "breast cancer BRCA1")'
-    )
-    parser.add_argument(
-        '--max-results',
+        "--max-results",
         type=int,
         default=100,
-        help='Maximum number of results to download (default: 100)'
+        help="Maximum number of results to download (default: 100)",
+    )
+    parser.add_argument("--output-dir", help="Directory to save downloaded papers")
+    parser.add_argument(
+        "--start-date", help="Filter by publication date - start (YYYY/MM/DD format)"
     )
     parser.add_argument(
-        '--output-dir',
-        help='Directory to save downloaded papers'
+        "--end-date", help="Filter by publication date - end (YYYY/MM/DD format)"
     )
     parser.add_argument(
-        '--start-date',
-        help='Filter by publication date - start (YYYY/MM/DD format)'
+        "--email",
+        default=os.environ.get("NCBI_EMAIL", "user@example.com"),
+        help="Email address for NCBI (required). Can also use NCBI_EMAIL env var",
     )
     parser.add_argument(
-        '--end-date',
-        help='Filter by publication date - end (YYYY/MM/DD format)'
+        "--api-key",
+        default=os.environ.get("NCBI_API_KEY"),
+        help="NCBI API key (optional, increases rate limit). Can also use NCBI_API_KEY env var",
     )
     parser.add_argument(
-        '--email',
-        default=os.environ.get('NCBI_EMAIL', 'user@example.com'),
-        help='Email address for NCBI (required). Can also use NCBI_EMAIL env var'
-    )
-    parser.add_argument(
-        '--api-key',
-        default=os.environ.get('NCBI_API_KEY'),
-        help='NCBI API key (optional, increases rate limit). Can also use NCBI_API_KEY env var'
-    )
-    parser.add_argument(
-        '--examples',
-        action='store_true',
-        help='Run example usage demonstrations'
+        "--examples", action="store_true", help="Run example usage demonstrations"
     )
 
     args = parser.parse_args()
@@ -626,9 +605,9 @@ Examples:
 
     # Validate required arguments
     if not args.query:
-        parser.error('--query is required (or use --examples to see demonstrations)')
+        parser.error("--query is required (or use --examples to see demonstrations)")
     if not args.output_dir:
-        parser.error('--output-dir is required')
+        parser.error("--output-dir is required")
 
     # Initialize fetcher
     print(f"Initializing PubMed Central fetcher...")
@@ -636,10 +615,7 @@ Examples:
     if args.api_key:
         print(f"API Key: {'*' * 8}{args.api_key[-4:]}")
 
-    fetcher = PubMedCentralFetcher(
-        email=args.email,
-        api_key=args.api_key
-    )
+    fetcher = PubMedCentralFetcher(email=args.email, api_key=args.api_key)
 
     # Search and download
     print(f"\nSearching for: {args.query}")
@@ -654,7 +630,7 @@ Examples:
         output_dir=Path(args.output_dir),
         max_results=args.max_results,
         start_date=args.start_date,
-        end_date=args.end_date
+        end_date=args.end_date,
     )
 
     print(f"\n{'='*60}")
@@ -666,5 +642,5 @@ Examples:
     print(f"\nFiles saved to: {args.output_dir}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

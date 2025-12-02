@@ -44,7 +44,7 @@ def interactive_mode(client: MedicalPapersClient) -> None:
             if not query_input:
                 continue
 
-            if query_input.lower() in ['quit', 'exit']:
+            if query_input.lower() in ["quit", "exit"]:
                 print("Goodbye!")
                 break
 
@@ -57,14 +57,14 @@ def interactive_mode(client: MedicalPapersClient) -> None:
             search_type, query = parts
 
             # Execute search
-            if search_type == 'semantic':
-                results = client.search(query, k=10, search_type='vector')
+            if search_type == "semantic":
+                results = client.search(query, k=10, search_type="vector")
                 print(f"\n=== Semantic Search Results for: '{query}' ===")
-            elif search_type == 'keyword':
-                results = client.search(query, k=10, search_type='keyword')
+            elif search_type == "keyword":
+                results = client.search(query, k=10, search_type="keyword")
                 print(f"\n=== Keyword Search Results for: '{query}' ===")
-            elif search_type == 'hybrid':
-                results = client.search(query, k=10, search_type='hybrid')
+            elif search_type == "hybrid":
+                results = client.search(query, k=10, search_type="hybrid")
                 print(f"\n=== Hybrid Search Results for: '{query}' ===")
             else:
                 print(f"Unknown search type: {search_type}")
@@ -89,7 +89,9 @@ def interactive_mode(client: MedicalPapersClient) -> None:
             print(f"Error: {e}")
 
 
-def run_query(client: MedicalPapersClient, query: str, search_type: str = 'hybrid', k: int = 10) -> None:
+def run_query(
+    client: MedicalPapersClient, query: str, search_type: str = "hybrid", k: int = 10
+) -> None:
     """Run a single query and display results.
 
     Args:
@@ -100,12 +102,12 @@ def run_query(client: MedicalPapersClient, query: str, search_type: str = 'hybri
     """
     print(f"Running {search_type} search for: '{query}'")
 
-    if search_type == 'semantic':
-        results = client.search(query, k=k, search_type='vector')
-    elif search_type == 'keyword':
-        results = client.search(query, k=k, search_type='keyword')
-    elif search_type == 'hybrid':
-        results = client.search(query, k=k, search_type='hybrid')
+    if search_type == "semantic":
+        results = client.search(query, k=k, search_type="vector")
+    elif search_type == "keyword":
+        results = client.search(query, k=k, search_type="keyword")
+    elif search_type == "hybrid":
+        results = client.search(query, k=k, search_type="hybrid")
     else:
         print(f"Unknown search type: {search_type}")
         return
@@ -127,13 +129,13 @@ def print_curl_command(client: MedicalPapersClient, body: dict) -> None:
         # Try to get host/port from client connection
         # This depends on the internals of opensearch-py
         connection = client.client.transport.hosts[0]
-        host = connection.get('host', 'localhost')
-        port = connection.get('port', 9200)
-        scheme = 'https' if client.client.transport.use_ssl else 'http'
+        host = connection.get("host", "localhost")
+        port = connection.get("port", 9200)
+        scheme = "https" if client.client.transport.use_ssl else "http"
     except Exception:
-        host = 'localhost'
+        host = "localhost"
         port = 9200
-        scheme = 'http'
+        scheme = "http"
 
     url = f"{scheme}://{host}:{port}/{client.index_name}/_search"
 
@@ -163,7 +165,7 @@ def test_queries():
     except Exception as e:
         print(f"Could not generate curl command: {e}")
 
-    results = client.search(query, k=k, search_type='keyword')
+    results = client.search(query, k=k, search_type="keyword")
     assert isinstance(results, list)
 
     # Test a hybrid search
@@ -182,7 +184,7 @@ def test_queries():
         else:
             print("(Skipping hybrid curl command generation - Bedrock not configured)")
 
-        results = client.search(query, k=k, search_type='hybrid')
+        results = client.search(query, k=k, search_type="hybrid")
         assert isinstance(results, list)
     except RuntimeError as e:
         # This might happen if Bedrock is not configured

@@ -1,15 +1,17 @@
 # test_ingestion.py
 import sys
-sys.path.append('src')
+
+sys.path.append("src")
 
 from embedding_cache import EmbeddingCache
+
 # from extractor import EntityExtractor
 from hybrid_extractor import HybridExtractor
 from schema.entity import EntityCollection, Disease
 
 # Test 1: Cache connection
 print("Testing Redis cache...")
-cache = EmbeddingCache('redis://localhost:6379')
+cache = EmbeddingCache("redis://localhost:6379")
 
 embedding = [0.1] * 1024
 cache.set("test text", embedding)
@@ -28,7 +30,7 @@ diabetes = Disease(
     synonyms=["Type II Diabetes", "Adult-Onset Diabetes"],
     abbreviations=["T2DM", "NIDDM"],
     umls_id="C0011860",
-    source="umls"
+    source="umls",
 )
 collection.add_disease(diabetes)
 

@@ -12,65 +12,61 @@ import torch
 
 class BioBERTEntityExtractor:
     """NER using BioBERT - context-aware biomedical entity extraction"""
-    
+
     def __init__(self, entity_collection: EntityCollection, cache: EmbeddingCache):
         self.entities = entity_collection
         self.cache = cache
-        
+
         # Load pre-trained BioBERT for NER
         model_name = "dmis-lab/biobert-base-cased-v1.2"
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForTokenClassification.from_pretrained(model_name)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model.to(self.device)
-        
+
         # Build fallback lookup for entity linking (map recognized text to IDs)
         self._build_entity_index()
-    
+
     def _build_entity_index(self):
         """Build index to link extracted entities to canonical IDs"""
         self.entity_index = {}
         for entity_type, collection in [
-            ('disease', self.entities.diseases),
-            ('gene', self.entities.genes),
-            ('drug', self.entities.drugs),
+            ("disease", self.entities.diseases),
+            ("gene", self.entities.genes),
+            ("drug", self.entities.drugs),
         ]:
             for entity in collection.values():
                 # Index by lowercase name for lookup
                 self.entity_index[entity.name.lower()] = (entity.entity_id, entity_type)
                 for synonym in entity.synonyms:
                     self.entity_index[synonym.lower()] = (entity.entity_id, entity_type)
-    
+
     def extract_entities(self, text: str, chunk_id: str) -> List[ExtractedEntity]:
         """Extract entities using BioBERT, then link to canonical IDs"""
         extracted = []
-        
+
         # Tokenize
         inputs = self.tokenizer(
-            text,
-            return_tensors="pt",
-            truncation=True,
-            max_length=512,
-            padding=True
+            text, return_tensors="pt", truncation=True, max_length=512, padding=True
         ).to(self.device)
-        
+
         # Predict
         with torch.no_grad():
             outputs = self.model(**inputs)
-        
+
         predictions = torch.argmax(outputs.logits, dim=2)
-        
+
         # Decode tokens and labels
-        tokens = self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
+        tokens = self.tokenizer.convert_ids_to_tokens(inputs["input_ids"][0])
         labels = predictions[0].cpu().numpy()
-        
+
         # Map label IDs to entity types (depends on BioBERT config)
         # BioBERT trained on BC5CDR has: O, B-Chemical, I-Chemical, B-Disease, I-Disease
         label_map = {
-            1: 'drug',      # Chemical
-            3: 'disease',   # Disease
+            1: "drug",  # Chemical
+            3: "disease",  # Disease
         }
-        
+
         # Extract spans
         current_entity = None
         for token, label in zip(tokens, labels):
@@ -80,44 +76,48 @@ class BioBERTEntityExtractor:
                     extracted.append(current_entity)
                     current_entity = None
             elif label in label_map:
-                if current_entity and current_entity['type'] != label_map[label]:
+                if current_entity and current_entity["type"] != label_map[label]:
                     extracted.append(current_entity)
                     current_entity = None
-                
+
                 if current_entity is None:
                     current_entity = {
-                        'text': token.replace('##', ''),  # Remove BERT subword markers
-                        'type': label_map[label],
-                        'confidence': float(outputs.logits[0, tokens.index(token), label])
+                        "text": token.replace("##", ""),  # Remove BERT subword markers
+                        "type": label_map[label],
+                        "confidence": float(
+                            outputs.logits[0, tokens.index(token), label]
+                        ),
                     }
                 else:
-                    current_entity['text'] += token.replace('##', '')
-        
+                    current_entity["text"] += token.replace("##", "")
+
         if current_entity:
             extracted.append(current_entity)
-        
+
         # Link to canonical IDs
         result = []
         for entity in extracted:
             # Try exact match first
-            entity_key = entity['text'].lower()
+            entity_key = entity["text"].lower()
             if entity_key in self.entity_index:
                 entity_id, entity_type = self.entity_index[entity_key]
             else:
                 # Fall back to approximate matching or skip
                 continue
-            
-            result.append(ExtractedEntity(
-                mention_text=entity['text'],
-                canonical_id=entity_id,
-                entity_type=entity_type,
-                start_char=text.find(entity['text']),  # Approximate
-                end_char=text.find(entity['text']) + len(entity['text']),
-                chunk_id=chunk_id,
-                confidence=entity['confidence'],
-                extraction_method='biobert'
-            ))
-        
+
+            result.append(
+                ExtractedEntity(
+                    mention_text=entity["text"],
+                    canonical_id=entity_id,
+                    entity_type=entity_type,
+                    start_char=text.find(entity["text"]),  # Approximate
+                    end_char=text.find(entity["text"]) + len(entity["text"]),
+                    chunk_id=chunk_id,
+                    confidence=entity["confidence"],
+                    extraction_method="biobert",
+                )
+            )
+
         return result
 
 
@@ -159,43 +159,87 @@ class EntityExtractor:
     def _build_lookup_index(self):
         """Pre-build FlashText processor for fast entity extraction"""
         from flashtext import KeywordProcessor
-        
+
         # Stopwords - common English words that are also gene symbols
         GENE_STOPWORDS = {
-            'A', 'AN', 'AND', 'AS', 'AT', 'BE', 'BY', 'FOR', 'FROM', 'HAS', 'HE',
-            'IF', 'IN', 'IS', 'IT', 'ITS', 'OF', 'ON', 'OR', 'THAT', 'THE', 'TO',
-            'WAS', 'WILL', 'WITH', 'ARE', 'NOT', 'BUT', 'CAN', 'HAD', 'HER', 'WE',
-            'WHEN', 'WHERE', 'WHO', 'MAY', 'SO', 'UP', 'OUT', 'NO', 'THAN', 'ALL'
+            "A",
+            "AN",
+            "AND",
+            "AS",
+            "AT",
+            "BE",
+            "BY",
+            "FOR",
+            "FROM",
+            "HAS",
+            "HE",
+            "IF",
+            "IN",
+            "IS",
+            "IT",
+            "ITS",
+            "OF",
+            "ON",
+            "OR",
+            "THAT",
+            "THE",
+            "TO",
+            "WAS",
+            "WILL",
+            "WITH",
+            "ARE",
+            "NOT",
+            "BUT",
+            "CAN",
+            "HAD",
+            "HER",
+            "WE",
+            "WHEN",
+            "WHERE",
+            "WHO",
+            "MAY",
+            "SO",
+            "UP",
+            "OUT",
+            "NO",
+            "THAN",
+            "ALL",
         }
-        
+
         # Use case-insensitive processor for diseases/drugs
         self.keyword_processor = KeywordProcessor(case_sensitive=False)
-        
+
         # Use case-sensitive processor for genes (genes are UPPERCASE in papers)
         self.gene_processor = KeywordProcessor(case_sensitive=True)
-        
+
         for entity_type, collection in [
-            ('disease', self.entities.diseases),
-            ('gene', self.entities.genes),
-            ('drug', self.entities.drugs),
-            ('protein', self.entities.proteins)
+            ("disease", self.entities.diseases),
+            ("gene", self.entities.genes),
+            ("drug", self.entities.drugs),
+            ("protein", self.entities.proteins),
         ]:
             for entity in collection.values():
                 # We use a composite key of "id|type" as the clean name
                 clean_name = f"{entity.entity_id}|{entity_type}"
-                
-                if entity_type == 'gene':
+
+                if entity_type == "gene":
                     # Add to case-sensitive processor with filtering
                     # Only add canonical name if it's all caps and not a stopword
-                    if entity.name.isupper() and entity.name not in GENE_STOPWORDS and len(entity.name) >= 2:
+                    if (
+                        entity.name.isupper()
+                        and entity.name not in GENE_STOPWORDS
+                        and len(entity.name) >= 2
+                    ):
                         self.gene_processor.add_keyword(entity.name, clean_name)
-                    
+
                     # Add synonyms/abbreviations
                     for variant in entity.synonyms + entity.abbreviations:
                         # Must be all uppercase, min 3 chars (to avoid "IF", "OR", etc.), not a stopword
-                        if (variant.isupper() and 
-                            len(variant) >= 3 and 
-                            variant not in GENE_STOPWORDS):
+                        if (
+                            variant.isupper()
+                            and len(variant) >= 3
+                            and variant not in GENE_STOPWORDS
+                        ):
                             self.gene_processor.add_keyword(variant, clean_name)
                 else:
                     # Diseases/drugs: case-insensitive, standard filtering
@@ -206,50 +250,54 @@ class EntityExtractor:
 
     def extract_entities(self, text: str, chunk_id: str) -> List[ExtractedEntity]:
         """Extract biomedical entities from text using FlashText.
-        
+
         Performs entity recognition by matching text against known entity names,
         synonyms, and abbreviations using the Aho-Corasick algorithm (via FlashText).
         Uses case-sensitive matching for genes and case-insensitive for diseases/drugs.
-        
+
         Args:
             text: The text to extract entities from.
             chunk_id: Unique identifier for the text chunk being processed.
-        
+
         Returns:
             List of extracted entities with their positions, types, and canonical IDs.
         """
         extracted = []
-        
+
         # Extract diseases and drugs (case-insensitive)
         keywords_found = self.keyword_processor.extract_keywords(text, span_info=True)
         for clean_name, start, end in keywords_found:
-            entity_id, entity_type = clean_name.split('|')
-            extracted.append(ExtractedEntity(
-                mention_text=text[start:end],
-                canonical_id=entity_id,
-                entity_type=entity_type,
-                start_char=start,
-                end_char=end,
-                chunk_id=chunk_id,
-                confidence=1.0,
-                extraction_method='flashtext'
-            ))
-        
+            entity_id, entity_type = clean_name.split("|")
+            extracted.append(
+                ExtractedEntity(
+                    mention_text=text[start:end],
+                    canonical_id=entity_id,
+                    entity_type=entity_type,
+                    start_char=start,
+                    end_char=end,
+                    chunk_id=chunk_id,
+                    confidence=1.0,
+                    extraction_method="flashtext",
+                )
+            )
+
         # Extract genes (case-sensitive)
         gene_keywords = self.gene_processor.extract_keywords(text, span_info=True)
         for clean_name, start, end in gene_keywords:
-            entity_id, entity_type = clean_name.split('|')
-            extracted.append(ExtractedEntity(
-                mention_text=text[start:end],
-                canonical_id=entity_id,
-                entity_type=entity_type,
-                start_char=start,
-                end_char=end,
-                chunk_id=chunk_id,
-                confidence=1.0,
-                extraction_method='flashtext_case_sensitive'
-            ))
-        
+            entity_id, entity_type = clean_name.split("|")
+            extracted.append(
+                ExtractedEntity(
+                    mention_text=text[start:end],
+                    canonical_id=entity_id,
+                    entity_type=entity_type,
+                    start_char=start,
+                    end_char=end,
+                    chunk_id=chunk_id,
+                    confidence=1.0,
+                    extraction_method="flashtext_case_sensitive",
+                )
+            )
+
         return extracted
 
 
