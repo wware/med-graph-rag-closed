@@ -3,7 +3,8 @@ import sys
 sys.path.append('src')
 
 from embedding_cache import EmbeddingCache
-from extractor import EntityExtractor
+# from extractor import EntityExtractor
+from hybrid_extractor import HybridExtractor
 from schema.entity import EntityCollection, Disease
 
 # Test 1: Cache connection
@@ -31,7 +32,8 @@ diabetes = Disease(
 )
 collection.add_disease(diabetes)
 
-extractor = EntityExtractor(collection, cache)
+# extractor = EntityExtractor(collection, cache)
+extractor = HybridExtractor(collection, cache)
 
 # Test extraction
 text = "Patients with T2DM often develop complications."

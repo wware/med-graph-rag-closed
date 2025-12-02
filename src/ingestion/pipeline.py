@@ -13,7 +13,9 @@ from pathlib import Path
 from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
 from src.ingestion.jats_parser import ParsedPaper, PaperMetadata, Chunk
 from src.ingestion.embedding_generator import EmbeddingGenerator
-from src.ingestion.extractor import EntityExtractor
+
+# from src.ingestion.extractor import EntityExtractor
+from src.ingestion.hybrid_extractor import HybridExtractor, FlashTextExtractor, BioBERTExtractor
 from src.schema.entity import EntityCollection
 from src.ingestion.embedding_cache import EmbeddingCache
 from unittest.mock import patch, MagicMock
@@ -349,7 +351,10 @@ class PaperIndexingPipeline:
             print("Warning: reference_entities.jsonl not found, using empty collection")
             entity_collection = EntityCollection()
 
-        self.entity_extractor = EntityExtractor(entity_collection, cache)
+        # self.entity_extractor = EntityExtractor(entity_collection, cache)
+        # self.entity_extractor = HybridExtractor(entity_collection, cache)
+        self.flash_text_extractor = FlashTextExtractor(entity_collection, cache)
+        self.bio_bert_extractor = BioBERTExtractor(entity_collection, cache)
 
     def process_paper(self, paper: ParsedPaper) -> Dict[str, int]:
         """Process a single paper: generate embeddings and index all chunks.
@@ -373,6 +378,14 @@ class PaperIndexingPipeline:
         # Prepare documents for indexing
         for chunk, embedding in zip(paper.chunks, embeddings):
             doc_id = f"{paper.metadata.pmc_id}_{chunk.section}_{chunk.paragraph_index}"
+
+            # Extracted Entities
+            if chunk.section == "abstract" or chunk.chunk_type == "abstract":
+                # Use HybridExtractor which will use BioBERT for abstracts
+                entities = self.bio_bert_extractor.extract_entities(chunk.text, doc_id)
+            else:
+                # Use only FlashText for non-abstract sections (faster)
+                entities = self.flash_text_extractor.extract_entities(chunk.text, doc_id)
 
             document = {
                 # Embedding
@@ -403,7 +416,7 @@ class PaperIndexingPipeline:
                         "type": e.entity_type,
                         "umls_id": e.canonical_id,
                     }
-                    for e in self.entity_extractor.extract_entities(chunk.text, doc_id)
+                    for e in entities
                 ],
             }
 
@@ -603,7 +616,7 @@ class TestOpenSearchIndexer:
     def test_init_aws_deployment(self):
         """Test initialization for AWS OpenSearch"""
         with (
-            patch("src.ingestion.pipeline.OpenSearch") as mock_os,
+            patch("src.ingestion.pipeline.OpenSearch"),
             patch("boto3.Session") as mock_session,
         ):
 
@@ -636,7 +649,7 @@ class TestOpenSearchIndexer:
         """Test that index creation is skipped if index exists"""
         mock_opensearch_client.indices.exists.return_value = True
 
-        indexer = OpenSearchIndexer(create_index=True)
+        OpenSearchIndexer(create_index=True)
 
         mock_opensearch_client.indices.create.assert_not_called()
 
