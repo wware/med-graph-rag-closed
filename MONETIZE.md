@@ -314,7 +314,7 @@ I'm not "layering all three" - that's a recipe for failure. I need to pick the c
 
 The idea here is that the MCP server is not a viable business really, but it can make sense to open-source all the code for queries, and quickly build a large database of linked data to be queried. This database becomes the valuable thing that you protect (in biz dev parlance, the "moat" that is hard to swim across).
 
-**Link:** [https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe](https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe)  
+**Link:** [https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe](https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe)
 
 ## Updated Business Model
 
@@ -476,7 +476,7 @@ EV = (0.50 × -$50K) [failure, but consulting saves you]
    + (0.30 × $50K)  [lifestyle business, modest success]
    + (0.15 × $200K) [strong business]
    + (0.05 × $5M)   [acquisition]
-   
+
    = -$25K + $15K + $30K + $250K
    = $270K over 3 years
 ```
@@ -485,7 +485,7 @@ EV = (0.50 × -$50K) [failure, but consulting saves you]
 
 **Job at health-tech company:**
 - Year 1: $180K salary
-- Year 2: $190K salary  
+- Year 2: $190K salary
 - Year 3: $200K salary
 - Total: $570K over 3 years
 - Upside: Maybe some equity (0.1-0.5%), probably worth $0-50K
@@ -524,7 +524,7 @@ EV = (0.50 × -$25K) [failure, but boost consulting career]
    + (0.30 × $100K) [lifestyle business]
    + (0.15 × $250K) [strong business]
    + (0.05 × $5M)   [acquisition]
-   
+
    = -$12.5K + $30K + $37.5K + $250K
    = $305K over 3 years
 

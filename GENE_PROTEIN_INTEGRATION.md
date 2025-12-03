@@ -67,22 +67,22 @@ from src.schema.entity import Entity, EntityCollection
 def load_hgnc_genes(filepath: str) -> dict:
     """Load genes from HGNC TSV file."""
     genes = {}
-    
+
     with open(filepath, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f, delimiter='\t')
-        
+
         for row in reader:
             gene_id = row['hgnc_id']
             symbol = row['symbol']
             name = row['name']
-            
+
             # Collect synonyms
             synonyms = []
             if row.get('alias_symbol'):
                 synonyms.extend(row['alias_symbol'].split('|'))
             if row.get('prev_symbol'):
                 synonyms.extend(row['prev_symbol'].split('|'))
-            
+
             genes[gene_id] = Entity(
                 entity_id=gene_id,
                 name=symbol,
@@ -91,22 +91,22 @@ def load_hgnc_genes(filepath: str) -> dict:
                 abbreviations=[],
                 description=name
             )
-    
+
     return genes
 
 def load_uniprot_proteins(filepath: str) -> dict:
     """Load proteins from UniProt TSV file."""
     proteins = {}
-    
+
     with open(filepath, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f, delimiter='\t')
-        
+
         for row in reader:
             accession = row['Entry']
             entry_name = row['Entry Name']
             protein_name = row['Protein names']
             gene_names = row.get('Gene Names', '')
-            
+
             # Parse protein names (format: "Name1 (Name2) (Name3)")
             synonyms = []
             if '(' in protein_name:
@@ -115,11 +115,11 @@ def load_uniprot_proteins(filepath: str) -> dict:
                 synonyms = [p.strip(') ') for p in parts[1:]]
             else:
                 main_name = protein_name.strip()
-            
+
             # Add gene names as synonyms
             if gene_names:
                 synonyms.extend(gene_names.split())
-            
+
             proteins[accession] = Entity(
                 entity_id=accession,
                 name=main_name,
@@ -128,7 +128,7 @@ def load_uniprot_proteins(filepath: str) -> dict:
                 abbreviations=[],
                 description=entry_name
             )
-    
+
     return proteins
 
 def main():
@@ -136,11 +136,11 @@ def main():
     print("Loading HGNC genes...")
     genes = load_hgnc_genes('data/reference/hgnc_complete_set.txt')
     print(f"  Loaded {len(genes)} genes")
-    
+
     print("Loading UniProt proteins...")
     proteins = load_uniprot_proteins('data/reference/uniprot_human.txt')
     print(f"  Loaded {len(proteins)} proteins")
-    
+
     # Create entity collection
     collection = EntityCollection(
         diseases={},  # Load existing if available
@@ -148,7 +148,7 @@ def main():
         genes=genes,
         proteins=proteins
     )
-    
+
     # Save to file
     output_path = 'reference_entities.jsonl'
     collection.save(output_path)

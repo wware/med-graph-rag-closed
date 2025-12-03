@@ -32,6 +32,11 @@ dependencies = [
     "flashtext>=2.7",
     "transformers>=4.57.3",
     "torch>=2.9.1",
+    "numpy==1.26.4",
+    "thinc==8.2.5", # Known compatible version
+    "spacy==3.7.6",
+    "scispacy==0.5.5",
+    "sentence-transformers>=5.1.2",
 ]
 
 [project.scripts]

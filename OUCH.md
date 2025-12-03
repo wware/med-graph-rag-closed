@@ -1,9 +1,9 @@
 # Testing Python parser files
 
-**Created:** 11/30/2025 15:55:03  
-**Updated:** 11/30/2025 16:14:40  
-**Exported:** 11/30/2025 16:22:33  
-**Link:** [https://claude.ai/chat/c0e16cce-c9ea-427b-b186-3b26eadfab95](https://claude.ai/chat/c0e16cce-c9ea-427b-b186-3b26eadfab95)  
+**Created:** 11/30/2025 15:55:03
+**Updated:** 11/30/2025 16:14:40
+**Exported:** 11/30/2025 16:22:33
+**Link:** [https://claude.ai/chat/c0e16cce-c9ea-427b-b186-3b26eadfab95](https://claude.ai/chat/c0e16cce-c9ea-427b-b186-3b26eadfab95)
 
 ## Response:
 11/30/2025, 4:14:40 PM
@@ -58,16 +58,16 @@ def __init__(self,
              aws_profile: Optional[str] = None):
     """
     Initialize client
-    
+
     Automatically detects local vs AWS mode based on opensearch_host.
     Local mode: opensearch_host='localhost' or '127.0.0.1' or 'opensearch'
     AWS mode: opensearch_host='search-xxx.us-east-1.es.amazonaws.com'
     """
-    
+
     # Detect if running in local mode
     local_hosts = ['localhost', '127.0.0.1', 'opensearch']
     is_local = opensearch_host in local_hosts
-    
+
     if is_local:
         # Local OpenSearch (docker-compose) - no auth, port 9200
         self.client = OpenSearch(
@@ -85,7 +85,7 @@ def __init__(self,
         session = boto3.Session(profile_name=aws_profile, region_name=aws_region)
         credentials = session.get_credentials()
         auth = AWSV4SignerAuth(credentials, aws_region, 'es')
-        
+
         self.client = OpenSearch(
             hosts=[{'host': opensearch_host, 'port': 443}],
             http_auth=auth,
@@ -94,11 +94,11 @@ def __init__(self,
             connection_class=RequestsHttpConnection,
             timeout=60
         )
-        
+
         # Bedrock client for generating query embeddings
         self.bedrock = session.client('bedrock-runtime', region_name=aws_region)
         self.local_mode = False
-    
+
     self.index_name = index_name
     self.model_id = 'amazon.titan-embed-text-v2:0'
 ```
@@ -127,21 +127,21 @@ def _generate_query_embedding(self, text: str) -> List[float]:
             import random
             print("WARNING: Using random embeddings. Install sentence-transformers for real embeddings.")
             return [random.random() for _ in range(1024)]
-    
+
     # AWS Bedrock embedding (production)
     request_body = {
         "inputText": text,
         "dimensions": 1024,
         "normalize": True
     }
-    
+
     response = self.bedrock.invoke_model(
         modelId=self.model_id,
         contentType='application/json',
         accept='application/json',
         body=json.dumps(request_body)
     )
-    
+
     response_body = json.loads(response['body'].read())
     return response_body['embedding']
 ```
@@ -153,11 +153,11 @@ def _generate_query_embedding(self, text: str) -> List[float]:
 Your MCP server calls `client.hybrid_search()` but that method **doesn't exist**. Add it:
 
 ```python
-def hybrid_search(self, query: str, k: int = 10, 
+def hybrid_search(self, query: str, k: int = 10,
                   vector_weight: float = 0.5) -> List[Dict[str, Any]]:
     """
     Convenience method for hybrid search (backward compatibility with MCP server)
-    
+
     Returns raw dicts instead of SearchResult objects
     """
     results = self.search(
@@ -166,7 +166,7 @@ def hybrid_search(self, query: str, k: int = 10,
         search_type='hybrid',
         vector_weight=vector_weight
     )
-    
+
     # Convert SearchResult objects to dicts for MCP server
     return [asdict(r) for r in results]
 ```
@@ -240,7 +240,7 @@ print('✓ Connected to local OpenSearch')
 
 # Cold hard reality: MCP server is a marketing no-go
 
-**Link:** [https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe](https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe)  
+**Link:** [https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe](https://claude.ai/chat/f728a394-9aa9-463f-adb6-b867514cbdbe)
 
 ## Prompt:
 11/30/2025, 6:55:29 PM
@@ -270,7 +270,7 @@ The code is marketing. The corpus is the product.
   - Contradiction detection metadata
   - Citation network analysis
   - Quality scoring
-  
+
 Someone could download papers from PubMed themselves, but they'd have to:
 - Process 3 million+ papers (months of compute)
 - Run all your NLP pipelines
@@ -285,7 +285,7 @@ Someone could download papers from PubMed themselves, but they'd have to:
 
 **4. Pricing that makes scraping uneconomical**
 - Platform tier: $2,000/month unlimited queries
-- If someone tries to scrape via API: 
+- If someone tries to scrape via API:
   - They'd need millions of queries to get everything
   - At 1000 queries/hour = 720K/month
   - To scrape 3M papers = 4+ months at $2K/month = $8K
@@ -615,7 +615,7 @@ User asks: "What treats insulin resistance?"
   "variants": ["metformin", "glucophage", "fortamet"],
   "embeddings": {
     "titan_v2": [0.123, -0.456, ...],      // 1024-dim
-    "pubmedbert": [0.789, 0.234, ...],     // 768-dim  
+    "pubmedbert": [0.789, 0.234, ...],     // 768-dim
     "biogpt": [0.345, -0.678, ...]         // 1536-dim (optional)
   }
 }
@@ -644,8 +644,8 @@ mention = "patients with T2DM"
 mention_embedding = embed(mention, model="pubmedbert")
 
 # 3. Find closest reference entity
-best_match = find_nearest(mention_embedding, reference_entities, 
-                          embedding_key="pubmedbert", 
+best_match = find_nearest(mention_embedding, reference_entities,
+                          embedding_key="pubmedbert",
                           threshold=0.85)
 
 # 4. Link to canonical entity
@@ -676,8 +676,8 @@ That's totally manageable. You can:
 # Build reference entity embeddings (one-time)
 for entity in reference_entities:
     entity["embeddings"] = {
-        "titan_v2": bedrock.embed(entity["canonical_name"] + 
-                                  " " + 
+        "titan_v2": bedrock.embed(entity["canonical_name"] +
+                                  " " +
                                   " ".join(entity["variants"])),
         "pubmedbert": pubmedbert.embed(entity["canonical_name"])
     }
@@ -712,12 +712,12 @@ paper_json = {
 query_emb = embed("treats insulin resistance")
 
 # Find semantically similar entities
-candidate_entities = vector_search(query_emb, 
+candidate_entities = vector_search(query_emb,
                                    reference_entities.embeddings.titan_v2,
                                    top_k=20)
 
 # Then traverse graph from those entities
-papers = graph_query(entities=candidate_entities, 
+papers = graph_query(entities=candidate_entities,
                      relationship="treats")
 ```
 
@@ -813,16 +813,16 @@ def download_and_parse(pmcid):
     # Check cache first
     if redis.exists(f"parsed:{pmcid}"):
         return redis.get(f"parsed:{pmcid}")
-    
+
     # Download XML
     xml = download_from_pmc(pmcid)
-    
+
     # Parse JATS
     structured = parse_jats(xml)
-    
+
     # Cache parsed result
     redis.set(f"parsed:{pmcid}", structured, ex=86400*7)  # 7 day TTL
-    
+
     return structured
 ```
 
@@ -842,14 +842,14 @@ reference_embeddings = {
 # Paper mention embeddings: Cache by unique text
 def get_mention_embedding(mention_text):
     cache_key = f"emb:titan_v2:{hash(mention_text)}"
-    
+
     if redis.exists(cache_key):
         return redis.get(cache_key)
-    
+
     # Only call Bedrock if not cached
     embedding = bedrock.embed(mention_text)
     redis.set(cache_key, embedding, ex=86400*30)  # 30 day TTL
-    
+
     return embedding
 ```
 
@@ -874,17 +874,17 @@ If you embed "diabetes" once and cache it, you save 500K API calls.
 # Cache entity linking results
 def link_mention_to_entity(mention_text, mention_embedding):
     cache_key = f"link:{hash(mention_text)}"
-    
+
     if redis.exists(cache_key):
         return redis.get(cache_key)
-    
+
     # Vector similarity search against reference entities
     best_match = find_nearest(
         mention_embedding,
         reference_embeddings,
         threshold=0.85
     )
-    
+
     redis.set(cache_key, best_match.entity_id, ex=86400*30)
     return best_match.entity_id
 ```
@@ -897,10 +897,10 @@ def link_mention_to_entity(mention_text, mention_embedding):
 # Lambda handler
 def lambda_handler(event, context):
     pmcid = event['pmcid']
-    
+
     # Each paper processed independently
     result = process_paper(pmcid)
-    
+
     # Write to S3 (intermediate storage)
     s3.put_object(
         Bucket='processed-papers',
@@ -922,7 +922,7 @@ def worker(queue):
         pmcid = queue.get()
         if pmcid is None:
             break
-        
+
         result = process_paper(pmcid)
         save_to_opensearch(result)
 ```
@@ -1084,7 +1084,7 @@ The graph schema I outlined is solid for your needs. Let me map it directly to y
   "abstract": "...",
   "publication_date": "2023-05-15",
   "study_type": "RCT",
-  
+
   "entities": [
     {
       "mention": "metformin",
@@ -1096,12 +1096,12 @@ The graph schema I outlined is solid for your needs. Let me map it directly to y
     {
       "mention": "type 2 diabetes",
       "canonical_id": "ENTITY:002",
-      "umls_id": "C0011860", 
+      "umls_id": "C0011860",
       "type": "disease",
       "positions": [[89, 104]]
     }
   ],
-  
+
   "relationships": [
     {
       "subject": "ENTITY:001",
@@ -1139,7 +1139,7 @@ Build your canonical entity set with embeddings:
 **How many entities to start?**
 
 - **Minimum viable:** 10K entities (top diseases, drugs, genes)
-- **Good coverage:** 50K entities 
+- **Good coverage:** 50K entities
 - **Comprehensive:** 100K+ entities
 
 Start with 10K, expand as you encounter new ones during ingestion.
@@ -1151,26 +1151,26 @@ Start with 10K, expand as you encounter new ones during ingestion.
 def process_paper(pmc_id):
     # 1. Download & parse (check cache first)
     parsed = get_cached_or_parse(pmc_id)
-    
+
     # 2. Extract entity mentions (NER)
     mentions = extract_entities(parsed.text)
-    
+
     # 3. Get embeddings (batch, cache aggressively)
     embeddings = get_embeddings_cached(mentions)
-    
+
     # 4. Link to reference entities
     linked = link_to_entities(mentions, embeddings)
-    
+
     # 5. Extract relationships (simple co-occurrence to start)
     relationships = extract_relationships(linked)
-    
+
     # 6. Write to S3 (intermediate storage)
     s3.put_json(f"papers/{pmc_id}.json", {
         "pmc_id": pmc_id,
         "entities": linked,
         "relationships": relationships
     })
-    
+
     return pmc_id
 ```
 
@@ -1182,10 +1182,10 @@ Don't write to OpenSearch/Neo4j during processing. Write to S3, then bulk load:
 # After processing 10K papers
 def bulk_load():
     papers = s3.list_objects("papers/")
-    
+
     # Bulk load to OpenSearch
     opensearch.bulk_index(papers, index="medical_papers")
-    
+
     # Bulk load to Neo4j (if using)
     neo4j.bulk_create_nodes(extract_entities(papers))
     neo4j.bulk_create_relationships(extract_relationships(papers))
@@ -1222,11 +1222,11 @@ Don't try to do sophisticated NLP initially. Just capture co-occurrence:
 ```python
 def extract_relationships(entities, text):
     relationships = []
-    
+
     # Simple: entities that appear in same sentence
     for sentence in text.sentences:
         sentence_entities = [e for e in entities if e.in_sentence(sentence)]
-        
+
         # Create relationships for every pair
         for e1, e2 in combinations(sentence_entities, 2):
             if e1.type == "drug" and e2.type == "disease":
@@ -1236,7 +1236,7 @@ def extract_relationships(entities, text):
                     "object": e2.id,
                     "evidence": sentence.text
                 })
-    
+
     return relationships
 ```
 
@@ -1413,10 +1413,10 @@ s3://med-graph-corpus/
 # Lambda function
 def lambda_handler(event, context):
     pmc_id = event['pmc_id']
-    
+
     # Process paper
     result = process_paper(pmc_id)
-    
+
     # Write to S3 (batched by date or ID range)
     batch_id = pmc_id[:3]  # Group by first 3 chars
     s3.put_object(
@@ -1431,18 +1431,18 @@ def lambda_handler(event, context):
 ```python
 def prepare_bulk_import():
     """
-    Read all processed papers from S3, 
+    Read all processed papers from S3,
     generate CSV files for Neo4j bulk import
     """
-    
+
     # Collect all entities across all papers
     all_entities = defaultdict(dict)
     all_relationships = []
-    
+
     # Stream from S3 (don't load everything in memory)
     for s3_obj in s3.list_objects('processed-papers/'):
         paper = json.loads(s3_obj['Body'].read())
-        
+
         # Accumulate entities
         for entity in paper['entities']:
             if entity['canonical_id'] not in all_entities:
@@ -1452,7 +1452,7 @@ def prepare_bulk_import():
                     'type': entity['type'],
                     'umls_id': entity.get('umls_id', '')
                 }
-        
+
         # Accumulate relationships
         for rel in paper['relationships']:
             all_relationships.append({
@@ -1462,9 +1462,9 @@ def prepare_bulk_import():
                 'source_paper': paper['pmc_id'],
                 'evidence': rel['evidence_text']
             })
-    
+
     # Write CSV files for Neo4j import
-    write_csv('s3://med-graph-corpus/graph-imports/nodes/entities.csv', 
+    write_csv('s3://med-graph-corpus/graph-imports/nodes/entities.csv',
               all_entities.values())
     write_csv('s3://med-graph-corpus/graph-imports/relationships/rels.csv',
               all_relationships)
@@ -1513,7 +1513,7 @@ for paper in new_papers:
     neo4j.run("""
         MERGE (p:Paper {pmc_id: $pmc_id})
         SET p.title = $title
-        
+
         UNWIND $entities as entity
         MERGE (e:Entity {id: entity.id})
         MERGE (p)-[:MENTIONS]->(e)

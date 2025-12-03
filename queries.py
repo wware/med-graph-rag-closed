@@ -1,4 +1,5 @@
 from src.ingestion.triple_hop_query import TripleHopQuery
+
 thq = TripleHopQuery()
 print(thq.disease_to_genes_to_drugs("diabetes"))
 print(thq.drug_mechanism_analysis("aspirin"))

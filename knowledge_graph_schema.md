@@ -23,8 +23,7 @@ All medical entities (Disease, Gene, Drug, Protein, etc.) share these base prope
 - name: Primary canonical name
 - synonyms: [list of alternate names]
 - abbreviations: [common abbreviations, e.g., "T2DM", "NIDDM"]
-- embedding_titan_v2: Pre-computed 1024-dim embedding for semantic search
-- embedding_pubmedbert: Pre-computed 768-dim biomedical embedding
+- embedding_biolord: Pre-computed 768-dim biomedical embedding
 - created_at: Timestamp when entity was added
 - source: Origin ("umls", "mesh", "rxnorm", "hgnc", "uniprot", "extracted")
 ```
@@ -47,28 +46,35 @@ Properties:
 ```
 
 #### Gene
-Represents genes and genetic variants
+Represents genes and their associated variants
 ```
 Properties:
 - entity_id: HGNC ID (e.g., HGNC:1100 for BRCA1)
-- symbol: Gene symbol (BRCA1)
-- name: Full name
-- synonyms: [alternate symbols]
+- symbol: Gene symbol (e.g., BRCA1)
+- name: Full gene name
+- synonyms: [list of alternate symbols]
 - hgnc_id: HGNC identifier (same as entity_id)
-- chromosome: Location (17q21.31)
+- chromosome: Chromosomal location (e.g., 17q21.31)
 - entrez_id: NCBI Gene ID
+- known_variants: [list of clinically significant Variant objects]
 - [plus common entity properties above]
 ```
 
-#### Mutation
+#### Variant
 Represents specific genetic variants
 ```
 Properties:
-- id: dbSNP ID or HGVS notation (e.g., rs80357906)
-- gene_id: Parent gene
-- variant_type: (SNP, deletion, insertion, etc.)
-- notation: HGVS string (c.68_69delAG)
-- consequence: (missense, nonsense, frameshift, etc.)
+- variant_id: dbSNP ID (e.g., rs80357906) or HGVS notation
+- gene_id: Reference to parent gene (HGNC ID)
+- hgvs_c: Coding notation (e.g., c.68_69delAG)
+- hgvs_p: Protein notation (e.g., p.Glu23ValfsTer17)
+- variant_type: (snp, deletion, insertion, frameshift, etc.)
+- consequence: (missense, nonsense, loss_of_function, etc.)
+- clinvar_significance: ClinVar classification
+- allele_frequency: Population frequency (if relevant)
+- embedding_biolord: 768-dim embedding
+- source: ("clinvar", "dbsnp", "extracted")
+- created_at: Timestamp
 ```
 
 #### Drug
@@ -216,7 +222,7 @@ Properties:
 ```
 
 #### INCREASES_RISK
-`Gene/Mutation -[INCREASES_RISK]-> Disease`
+`VariantNode -[INCREASES_RISK]-> Disease`
 ```
 Properties:
 - risk_ratio: Numeric risk increase (e.g., 2.5x)
@@ -225,6 +231,15 @@ Properties:
 - population: Studied population
 - source_papers: [PMC IDs]
 - confidence: 0.0-1.0
+```
+
+#### MODIFIES_RESPONSE
+`VariantNode -[MODIFIES_RESPONSE]-> Drug`
+```
+Properties:
+- effect: (increased_efficacy, resistance, toxicity)
+- evidence: Description
+- source_papers: [PMC IDs]
 ```
 
 #### ASSOCIATED_WITH
@@ -300,6 +315,13 @@ Properties:
 - reversible: Boolean
 - source_papers: [PMC IDs]
 ```
+
+#### VARIANT_OF
+`Gene -[VARIANT_OF]-> VariantNode`
+```
+Properties:
+- transcript_affected: Which transcript
+- functional_impact: Description
 
 ### Research Metadata Relationships
 
@@ -384,9 +406,9 @@ Drug A -[TREATS]-> Disease X
   contradicted_by: [PMC444]  # One paper found no effect
 ```
 
-## Temporal Representation
+## Temporal Representation (?)
 
-Medical knowledge evolves. Track this with:
+Medical knowledge evolves. Track this (?) with:
 
 ```
 Drug -[TREATS {valid_from: "2015", valid_to: "2020"}]-> Disease
@@ -395,6 +417,8 @@ Drug -[TREATS {valid_from: "2015", valid_to: "2020"}]-> Disease
 Drug -[TREATS {valid_from: "2020", valid_to: null}]-> Disease
   # New understanding starting 2020
 ```
+
+This is a placeholder for now, because the problem of how to do this is hard. It will take some research to figure out a viable approach.
 
 ## Example Graph Snippet
 
@@ -412,7 +436,7 @@ Drug -[TREATS {valid_from: "2020", valid_to: null}]-> Disease
     }]->
 (:Disease {id: "C0006142", name: "Breast Cancer"})
 
-(:Mutation {id: "rs80357906", variant: "c.68_69delAG"})
+(:Variant {dbsnp_id: "rs80357906", hgvs_c: "c.68_69delAG"})
   -[:VARIANT_OF]->
 (:Gene {id: "HGNC:1100"})
 
@@ -511,10 +535,8 @@ Drug -[TREATS {valid_from: "2020", valid_to: null}]-> Disease
 The implementation uses **strongly-typed entity classes** (Disease, Gene, Drug, Protein, etc.) as the canonical representation for all entities. Each typed entity includes:
 
 - **Type-specific ID fields** (e.g., `umls_id` for Disease, `hgnc_id` for Gene)
-- **Pre-computed embeddings** (Titan v2, PubMedBERT) for semantic search
+- **Pre-computed embeddings** (PubMedBERT? BioLORD? scispacy?) for semantic search
 - **Provenance metadata** (`source`, `created_at`) for tracking entity origins
-
-This approach provides better type safety and validation compared to a generic entity class.
 
 ### Entity Collection Storage
 
@@ -530,6 +552,12 @@ Persistence format (JSONL):
 {"type": "disease", "data": {...}}
 {"type": "gene", "data": {...}}
 ```
+
+#### Entity Linking Pipeline
+
+NER (Named Entity Recognition) is the process of identifying entities in text (diseases, genes, drugs, proteins, etc) and assigning canonical IDs to them. This enables different papers to share IDs for the same entities, so that the knowledge graph can consistently link knowledge across papers.
+
+Entity Linking (EL) is the process of mapping entities in text to their corresponding canonical IDs in a knowledge graph.
 
 ### Relationship Provenance
 

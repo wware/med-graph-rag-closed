@@ -58,21 +58,21 @@ class MCPServer:
                     "properties": {
                         "query": {
                             "type": "string",
-                            "description": "Natural language query (e.g., 'What drugs treat BRCA1-mutated breast cancer?')"
+                            "description": "Natural language query (e.g., 'What drugs treat BRCA1-mutated breast cancer?')",
                         },
                         "max_depth": {
                             "type": "integer",
                             "description": "Maximum traversal depth for multi-hop reasoning (1-3, default: 2)",
-                            "default": 2
+                            "default": 2,
                         },
                         "min_confidence": {
                             "type": "number",
                             "description": "Minimum confidence score for relationships (0.0-1.0, default: 0.7)",
-                            "default": 0.7
-                        }
+                            "default": 0.7,
+                        },
                     },
-                    "required": ["query"]
-                }
+                    "required": ["query"],
+                },
             },
             {
                 "name": "diagnostic_chain_trace",
@@ -83,16 +83,16 @@ class MCPServer:
                         "symptoms": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "List of clinical findings/symptoms (e.g., ['elevated ALP', 'fatigue', 'photosensitive rash'])"
+                            "description": "List of clinical findings/symptoms (e.g., ['elevated ALP', 'fatigue', 'photosensitive rash'])",
                         },
                         "context": {
                             "type": "string",
                             "description": "Additional clinical context (age, gender, history, labs, etc.)",
-                            "default": ""
-                        }
+                            "default": "",
+                        },
                     },
-                    "required": ["symptoms"]
-                }
+                    "required": ["symptoms"],
+                },
             },
             {
                 "name": "evidence_contradiction_check",
@@ -102,17 +102,17 @@ class MCPServer:
                     "properties": {
                         "claim": {
                             "type": "string",
-                            "description": "Medical claim or question to check (e.g., 'Does aspirin prevent heart attacks in primary prevention?')"
+                            "description": "Medical claim or question to check (e.g., 'Does aspirin prevent heart attacks in primary prevention?')",
                         },
                         "include_meta_analyses": {
                             "type": "boolean",
                             "description": "Include systematic reviews and meta-analyses",
-                            "default": True
-                        }
+                            "default": True,
+                        },
                     },
-                    "required": ["claim"]
-                }
-            }
+                    "required": ["claim"],
+                },
+            },
         ]
 
     async def initialize(self) -> bool:
@@ -124,7 +124,7 @@ class MCPServer:
         try:
             self.client = MedicalPapersClient(
                 opensearch_host=self.opensearch_host,
-                opensearch_port=self.opensearch_port
+                opensearch_port=self.opensearch_port,
             )
             return True
         except Exception as e:
@@ -153,11 +153,11 @@ class MCPServer:
         Returns:
             Dict[str, Any]: A dictionary containing the list of available tools.
         """
-        return {
-            "tools": self.tools
-        }
+        return {"tools": self.tools}
 
-    async def handle_call_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_call_tool(
+        self, tool_name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Handle tools/call request.
 
         Routes to appropriate tool handler based on tool_name.
@@ -172,12 +172,9 @@ class MCPServer:
         if not self.client:
             return {
                 "content": [
-                    {
-                        "type": "text",
-                        "text": "Error: OpenSearch client not initialized"
-                    }
+                    {"type": "text", "text": "Error: OpenSearch client not initialized"}
                 ],
-                "isError": True
+                "isError": True,
             }
 
         try:
@@ -190,23 +187,17 @@ class MCPServer:
             else:
                 return {
                     "content": [
-                        {
-                            "type": "text",
-                            "text": f"Error: Unknown tool '{tool_name}'"
-                        }
+                        {"type": "text", "text": f"Error: Unknown tool '{tool_name}'"}
                     ],
-                    "isError": True
+                    "isError": True,
                 }
         except Exception as e:
             self._log_error(f"Tool call failed: {e}")
             return {
                 "content": [
-                    {
-                        "type": "text",
-                        "text": f"Error executing {tool_name}: {str(e)}"
-                    }
+                    {"type": "text", "text": f"Error executing {tool_name}: {str(e)}"}
                 ],
-                "isError": True
+                "isError": True,
             }
 
     async def _handle_graph_search(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -229,7 +220,9 @@ class MCPServer:
         max_depth = arguments.get("max_depth", 2)
         min_confidence = arguments.get("min_confidence", 0.7)
 
-        self._log_info(f"Graph search: '{query}' (depth={max_depth}, min_conf={min_confidence})")
+        self._log_info(
+            f"Graph search: '{query}' (depth={max_depth}, min_conf={min_confidence})"
+        )
 
         # For now, use hybrid search as a placeholder
         # TODO: Replace with actual graph traversal implementation
@@ -238,16 +231,11 @@ class MCPServer:
         # Format results
         formatted_results = self._format_search_results(results, query)
 
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": formatted_results
-                }
-            ]
-        }
+        return {"content": [{"type": "text", "text": formatted_results}]}
 
-    async def _handle_diagnostic_chain(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_diagnostic_chain(
+        self, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Handle diagnostic_chain_trace tool.
 
         TODO: Implement diagnostic reasoning:
@@ -278,16 +266,11 @@ class MCPServer:
 
         formatted_results = self._format_diagnostic_results(results, symptoms)
 
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": formatted_results
-                }
-            ]
-        }
+        return {"content": [{"type": "text", "text": formatted_results}]}
 
-    async def _handle_contradiction_check(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _handle_contradiction_check(
+        self, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Handle evidence_contradiction_check tool.
 
         TODO: Implement contradiction detection:
@@ -313,14 +296,7 @@ class MCPServer:
 
         formatted_results = self._format_contradiction_results(results, claim)
 
-        return {
-            "content": [
-                {
-                    "type": "text",
-                    "text": formatted_results
-                }
-            ]
-        }
+        return {"content": [{"type": "text", "text": formatted_results}]}
 
     def _format_search_results(self, results: List[Dict[str, Any]], query: str) -> str:
         """Format graph search results for display.
@@ -339,19 +315,23 @@ class MCPServer:
         output.append(f"Found {len(results)} relevant passages:\n")
 
         for i, result in enumerate(results[:10], 1):
-            pmc_id = result.get('pmc_id', 'Unknown')
-            title = result.get('title', 'Untitled')
-            section = result.get('section', 'unknown')
-            score = result.get('score', 0.0)
-            chunk_text = result.get('chunk_text', '')[:300]  # First 300 chars
+            pmc_id = result.get("pmc_id", "Unknown")
+            title = result.get("title", "Untitled")
+            section = result.get("section", "unknown")
+            score = result.get("score", 0.0)
+            chunk_text = result.get("chunk_text", "")[:300]  # First 300 chars
 
             output.append(f"### {i}. {title}")
-            output.append(f"**Source:** {pmc_id} | **Section:** {section} | **Relevance:** {score:.3f}")
+            output.append(
+                f"**Source:** {pmc_id} | **Section:** {section} | **Relevance:** {score:.3f}"
+            )
             output.append(f"{chunk_text}...\n")
 
         return "\n".join(output)
 
-    def _format_diagnostic_results(self, results: List[Dict[str, Any]], symptoms: List[str]) -> str:
+    def _format_diagnostic_results(
+        self, results: List[Dict[str, Any]], symptoms: List[str]
+    ) -> str:
         """Format diagnostic chain results.
 
         Args:
@@ -369,9 +349,9 @@ class MCPServer:
 
         # TODO: Group by diagnosis and rank by evidence strength
         for i, result in enumerate(results[:10], 1):
-            pmc_id = result.get('pmc_id', 'Unknown')
-            title = result.get('title', 'Untitled')
-            chunk_text = result.get('chunk_text', '')[:300]
+            pmc_id = result.get("pmc_id", "Unknown")
+            title = result.get("title", "Untitled")
+            chunk_text = result.get("chunk_text", "")[:300]
 
             output.append(f"### {i}. {title}")
             output.append(f"**Source:** {pmc_id}")
@@ -379,7 +359,9 @@ class MCPServer:
 
         return "\n".join(output)
 
-    def _format_contradiction_results(self, results: List[Dict[str, Any]], claim: str) -> str:
+    def _format_contradiction_results(
+        self, results: List[Dict[str, Any]], claim: str
+    ) -> str:
         """Format contradiction check results.
 
         Args:
@@ -398,8 +380,8 @@ class MCPServer:
         # TODO: Group into supporting/contradicting/neutral
         output.append("### Studies Found:\n")
         for i, result in enumerate(results[:15], 1):
-            pmc_id = result.get('pmc_id', 'Unknown')
-            title = result.get('title', 'Untitled')
+            pmc_id = result.get("pmc_id", "Unknown")
+            title = result.get("title", "Untitled")
 
             output.append(f"{i}. **{title}** ({pmc_id})")
 
@@ -428,12 +410,7 @@ class MCPServer:
             arguments = params.get("arguments", {})
             return await self.handle_call_tool(tool_name, arguments)
         else:
-            return {
-                "error": {
-                    "code": -32601,
-                    "message": f"Method not found: {method}"
-                }
-            }
+            return {"error": {"code": -32601, "message": f"Method not found: {method}"}}
 
     async def run(self) -> None:
         """Main server loop - reads from stdin, writes to stdout.

@@ -36,8 +36,10 @@ from enum import Enum
 # Enums for controlled vocabularies
 # ============================================================================
 
+
 class NodeType(str, Enum):
     """Valid node types in the knowledge graph"""
+
     DISEASE = "Disease"
     GENE = "Gene"
     MUTATION = "Mutation"
@@ -54,6 +56,7 @@ class NodeType(str, Enum):
 
 class RelationshipType(str, Enum):
     """Valid relationship types in the knowledge graph"""
+
     CAUSES = "CAUSES"
     TREATS = "TREATS"
     INCREASES_RISK = "INCREASES_RISK"
@@ -73,6 +76,7 @@ class RelationshipType(str, Enum):
 
 class Operator(str, Enum):
     """Comparison operators for filters"""
+
     EQ = "="
     NEQ = "!="
     GT = ">"
@@ -88,6 +92,7 @@ class Operator(str, Enum):
 
 class AggregationFunction(str, Enum):
     """Aggregation functions"""
+
     COUNT = "count"
     SUM = "sum"
     AVG = "avg"
@@ -100,11 +105,15 @@ class AggregationFunction(str, Enum):
 # Query Building Blocks
 # ============================================================================
 
+
 class PropertyFilter(BaseModel):
     """Filter on a node or relationship property"""
+
     field: str = Field(..., description="Property name (e.g., 'name', 'confidence')")
     operator: Operator = Field(default=Operator.EQ, description="Comparison operator")
-    value: Union[str, int, float, bool, List[Any]] = Field(..., description="Value to compare against")
+    value: Union[str, int, float, bool, List[Any]] = Field(
+        ..., description="Value to compare against"
+    )
 
     class Config:
         use_enum_values = True
@@ -112,11 +121,18 @@ class PropertyFilter(BaseModel):
 
 class Node(BaseModel):
     """Node specification in a graph pattern"""
+
     variable: str = Field(..., description="Variable name to reference this node")
     type: NodeType = Field(..., description="Node type")
-    properties: Optional[Dict[str, Any]] = Field(default=None, description="Exact property matches")
-    filters: Optional[List[PropertyFilter]] = Field(default=None, description="Property filters")
-    optional: bool = Field(default=False, description="Whether this node is optional (LEFT JOIN)")
+    properties: Optional[Dict[str, Any]] = Field(
+        default=None, description="Exact property matches"
+    )
+    filters: Optional[List[PropertyFilter]] = Field(
+        default=None, description="Property filters"
+    )
+    optional: bool = Field(
+        default=False, description="Whether this node is optional (LEFT JOIN)"
+    )
 
     class Config:
         use_enum_values = True
@@ -124,19 +140,31 @@ class Node(BaseModel):
 
 class Relationship(BaseModel):
     """Relationship specification in a graph pattern"""
+
     from_node: str = Field(..., alias="from", description="Source node variable")
     to_node: str = Field(..., alias="to", description="Target node variable")
     type: RelationshipType = Field(..., description="Relationship type")
-    variable: Optional[str] = Field(default=None, description="Variable name for this relationship")
-    properties: Optional[Dict[str, Any]] = Field(default=None, description="Exact property matches")
-    filters: Optional[List[PropertyFilter]] = Field(default=None, description="Property filters")
-    optional: bool = Field(default=False, description="Whether this relationship is optional")
-    direction: Literal["outgoing", "incoming", "both"] = Field(
-        default="outgoing",
-        description="Direction of relationship"
+    variable: Optional[str] = Field(
+        default=None, description="Variable name for this relationship"
     )
-    min_hops: int = Field(default=1, description="Minimum path length (for variable-length paths)")
-    max_hops: int = Field(default=1, description="Maximum path length (for variable-length paths)")
+    properties: Optional[Dict[str, Any]] = Field(
+        default=None, description="Exact property matches"
+    )
+    filters: Optional[List[PropertyFilter]] = Field(
+        default=None, description="Property filters"
+    )
+    optional: bool = Field(
+        default=False, description="Whether this relationship is optional"
+    )
+    direction: Literal["outgoing", "incoming", "both"] = Field(
+        default="outgoing", description="Direction of relationship"
+    )
+    min_hops: int = Field(
+        default=1, description="Minimum path length (for variable-length paths)"
+    )
+    max_hops: int = Field(
+        default=1, description="Maximum path length (for variable-length paths)"
+    )
 
     class Config:
         use_enum_values = True
@@ -145,40 +173,50 @@ class Relationship(BaseModel):
 
 class MatchPattern(BaseModel):
     """Graph pattern to match"""
+
     nodes: List[Node] = Field(..., description="Nodes to match")
     relationships: Optional[List[Relationship]] = Field(
-        default=None,
-        description="Relationships between nodes"
+        default=None, description="Relationships between nodes"
     )
 
-    @validator('relationships')
+    @validator("relationships")
     def validate_relationship_nodes(cls, relationships, values):
         """Ensure relationship endpoints reference defined nodes"""
         if relationships is None:
             return relationships
 
-        if 'nodes' not in values:
+        if "nodes" not in values:
             return relationships
 
-        node_vars = {n.variable for n in values['nodes']}
+        node_vars = {n.variable for n in values["nodes"]}
 
         for rel in relationships:
             if rel.from_node not in node_vars:
-                raise ValueError(f"Relationship 'from' node '{rel.from_node}' not defined in nodes")
+                raise ValueError(
+                    f"Relationship 'from' node '{rel.from_node}' not defined in nodes"
+                )
             if rel.to_node not in node_vars:
-                raise ValueError(f"Relationship 'to' node '{rel.to_node}' not defined in nodes")
+                raise ValueError(
+                    f"Relationship 'to' node '{rel.to_node}' not defined in nodes"
+                )
 
         return relationships
 
 
 class OrderBy(BaseModel):
     """Sorting specification"""
-    field: str = Field(..., description="Field to sort by (e.g., 'drug.name', 'treats.confidence')")
-    direction: Literal["asc", "desc"] = Field(default="asc", description="Sort direction")
+
+    field: str = Field(
+        ..., description="Field to sort by (e.g., 'drug.name', 'treats.confidence')"
+    )
+    direction: Literal["asc", "desc"] = Field(
+        default="asc", description="Sort direction"
+    )
 
 
 class Aggregation(BaseModel):
     """Aggregation specification"""
+
     function: AggregationFunction = Field(..., description="Aggregation function")
     field: str = Field(..., description="Field to aggregate")
     alias: str = Field(..., description="Output alias for aggregated value")
@@ -189,13 +227,19 @@ class Aggregation(BaseModel):
 
 class ReturnField(BaseModel):
     """Field to return in results"""
-    field: str = Field(..., description="Field name (e.g., 'd.name', 'treats.confidence')")
-    alias: Optional[str] = Field(default=None, description="Alias for the returned field")
+
+    field: str = Field(
+        ..., description="Field name (e.g., 'd.name', 'treats.confidence')"
+    )
+    alias: Optional[str] = Field(
+        default=None, description="Alias for the returned field"
+    )
 
 
 # ============================================================================
 # Complete Query Specification
 # ============================================================================
+
 
 class GraphQuery(BaseModel):
     """
@@ -204,32 +248,30 @@ class GraphQuery(BaseModel):
     This is the top-level model that represents a complete graph query.
     Can be composed/nested for complex queries.
     """
+
     match: MatchPattern = Field(..., description="Graph pattern to match")
 
     where: Optional[List[PropertyFilter]] = Field(
-        default=None,
-        description="Additional WHERE clause filters"
+        default=None, description="Additional WHERE clause filters"
     )
 
     return_fields: List[Union[str, ReturnField]] = Field(
-        default=["*"],
-        alias="return",
-        description="Fields to return"
+        default=["*"], alias="return", description="Fields to return"
     )
 
     distinct: bool = Field(default=False, description="Return distinct results only")
 
     order_by: Optional[List[OrderBy]] = Field(
-        default=None,
-        description="Sorting specification"
+        default=None, description="Sorting specification"
     )
 
     limit: Optional[int] = Field(default=None, description="Maximum number of results")
-    skip: Optional[int] = Field(default=None, description="Number of results to skip (for pagination)")
+    skip: Optional[int] = Field(
+        default=None, description="Number of results to skip (for pagination)"
+    )
 
     aggregations: Optional[List[Aggregation]] = Field(
-        default=None,
-        description="Aggregations to compute"
+        default=None, description="Aggregations to compute"
     )
 
     class Config:
@@ -238,19 +280,24 @@ class GraphQuery(BaseModel):
 
 class SubQuery(BaseModel):
     """Subquery that can be used within a larger query"""
+
     query: GraphQuery = Field(..., description="The subquery")
     alias: str = Field(..., description="Alias for subquery results")
 
 
 class UnionQuery(BaseModel):
     """Union of multiple queries"""
+
     queries: List[GraphQuery] = Field(..., min_items=2, description="Queries to union")
-    union_all: bool = Field(default=False, description="Whether to keep duplicates (UNION ALL)")
+    union_all: bool = Field(
+        default=False, description="Whether to keep duplicates (UNION ALL)"
+    )
 
 
 # ============================================================================
 # Query Translator Base Class
 # ============================================================================
+
 
 class QueryTranslator:
     """Base class for translating GraphQuery to backend-specific query languages"""
@@ -263,6 +310,7 @@ class QueryTranslator:
 # ============================================================================
 # Cypher Translator (Neo4j)
 # ============================================================================
+
 
 class CypherTranslator(QueryTranslator):
     """Translate GraphQuery to Cypher (Neo4j query language)"""
@@ -282,9 +330,7 @@ class CypherTranslator(QueryTranslator):
 
         # RETURN clause
         return_clause = self._build_return_clause(
-            query.return_fields,
-            query.aggregations,
-            query.distinct
+            query.return_fields, query.aggregations, query.distinct
         )
         parts.append(return_clause)
 
@@ -356,7 +402,7 @@ class CypherTranslator(QueryTranslator):
             if isinstance(value, str):
                 prop_strs.append(f'{key}: "{value}"')
             else:
-                prop_strs.append(f'{key}: {value}')
+                prop_strs.append(f"{key}: {value}")
 
         return " {" + ", ".join(prop_strs) + "}"
 
@@ -369,28 +415,32 @@ class CypherTranslator(QueryTranslator):
                 if isinstance(f.value, str):
                     conditions.append(f'{f.field} = "{f.value}"')
                 else:
-                    conditions.append(f'{f.field} = {f.value}')
+                    conditions.append(f"{f.field} = {f.value}")
             elif f.operator == Operator.GT:
-                conditions.append(f'{f.field} > {f.value}')
+                conditions.append(f"{f.field} > {f.value}")
             elif f.operator == Operator.GTE:
-                conditions.append(f'{f.field} >= {f.value}')
+                conditions.append(f"{f.field} >= {f.value}")
             elif f.operator == Operator.LT:
-                conditions.append(f'{f.field} < {f.value}')
+                conditions.append(f"{f.field} < {f.value}")
             elif f.operator == Operator.LTE:
-                conditions.append(f'{f.field} <= {f.value}')
+                conditions.append(f"{f.field} <= {f.value}")
             elif f.operator == Operator.IN:
-                values = ', '.join(f'"{v}"' if isinstance(v, str) else str(v) for v in f.value)
-                conditions.append(f'{f.field} IN [{values}]')
+                values = ", ".join(
+                    f'"{v}"' if isinstance(v, str) else str(v) for v in f.value
+                )
+                conditions.append(f"{f.field} IN [{values}]")
             elif f.operator == Operator.CONTAINS:
                 conditions.append(f'{f.field} CONTAINS "{f.value}"')
             # Add other operators as needed
 
         return "WHERE " + " AND ".join(conditions)
 
-    def _build_return_clause(self,
-                            return_fields: List[Union[str, ReturnField]],
-                            aggregations: Optional[List[Aggregation]],
-                            distinct: bool) -> str:
+    def _build_return_clause(
+        self,
+        return_fields: List[Union[str, ReturnField]],
+        aggregations: Optional[List[Aggregation]],
+        distinct: bool,
+    ) -> str:
         """Build RETURN clause"""
         returns = []
 
@@ -423,6 +473,7 @@ class CypherTranslator(QueryTranslator):
 # Example Queries
 # ============================================================================
 
+
 def example_queries():
     """Example queries demonstrating the query language"""
 
@@ -431,17 +482,26 @@ def example_queries():
         match=MatchPattern(
             nodes=[
                 Node(variable="drug", type=NodeType.DRUG),
-                Node(variable="disease", type=NodeType.DISEASE, properties={"name": "Breast Cancer"})
+                Node(
+                    variable="disease",
+                    type=NodeType.DISEASE,
+                    properties={"name": "Breast Cancer"},
+                ),
             ],
             relationships=[
                 Relationship(
-                    **{"from": "drug", "to": "disease", "type": RelationshipType.TREATS, "variable": "treats"}
+                    **{
+                        "from": "drug",
+                        "to": "disease",
+                        "type": RelationshipType.TREATS,
+                        "variable": "treats",
+                    }
                 )
-            ]
+            ],
         ),
         **{"return": ["drug.name", "treats.efficacy", "treats.source_papers"]},
         order_by=[OrderBy(field="treats.confidence", direction="desc")],
-        limit=10
+        limit=10,
     )
 
     print("Query 1: What drugs treat breast cancer?")
@@ -450,22 +510,36 @@ def example_queries():
     print("\nCypher:")
     translator = CypherTranslator()
     print(translator.translate(query1))
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
 
     # Example 2: Multi-hop - "What pathways are affected by BRCA1?"
     query2 = GraphQuery(
         match=MatchPattern(
             nodes=[
-                Node(variable="gene", type=NodeType.GENE, properties={"symbol": "BRCA1"}),
+                Node(
+                    variable="gene", type=NodeType.GENE, properties={"symbol": "BRCA1"}
+                ),
                 Node(variable="protein", type=NodeType.PROTEIN),
-                Node(variable="pathway", type=NodeType.PATHWAY)
+                Node(variable="pathway", type=NodeType.PATHWAY),
             ],
             relationships=[
-                Relationship(**{"from": "gene", "to": "protein", "type": RelationshipType.ENCODES}),
-                Relationship(**{"from": "protein", "to": "pathway", "type": RelationshipType.PARTICIPATES_IN})
-            ]
+                Relationship(
+                    **{
+                        "from": "gene",
+                        "to": "protein",
+                        "type": RelationshipType.ENCODES,
+                    }
+                ),
+                Relationship(
+                    **{
+                        "from": "protein",
+                        "to": "pathway",
+                        "type": RelationshipType.PARTICIPATES_IN,
+                    }
+                ),
+            ],
         ),
-        **{"return": ["pathway.name", "pathway.category"]}
+        **{"return": ["pathway.name", "pathway.category"]},
     )
 
     print("Query 2: What pathways are affected by BRCA1?")
@@ -473,26 +547,35 @@ def example_queries():
     print(query2.model_dump_json(indent=2, by_alias=True))
     print("\nCypher:")
     print(translator.translate(query2))
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
 
     # Example 3: With filters - "High-confidence treatments for breast cancer"
     query3 = GraphQuery(
         match=MatchPattern(
             nodes=[
                 Node(variable="drug", type=NodeType.DRUG),
-                Node(variable="disease", type=NodeType.DISEASE, properties={"name": "Breast Cancer"})
+                Node(
+                    variable="disease",
+                    type=NodeType.DISEASE,
+                    properties={"name": "Breast Cancer"},
+                ),
             ],
             relationships=[
                 Relationship(
-                    **{"from": "drug", "to": "disease", "type": RelationshipType.TREATS, "variable": "treats"}
+                    **{
+                        "from": "drug",
+                        "to": "disease",
+                        "type": RelationshipType.TREATS,
+                        "variable": "treats",
+                    }
                 )
-            ]
+            ],
         ),
         where=[
             PropertyFilter(field="treats.confidence", operator=Operator.GTE, value=0.8)
         ],
         **{"return": ["drug.name", "treats.efficacy", "treats.confidence"]},
-        order_by=[OrderBy(field="treats.confidence", direction="desc")]
+        order_by=[OrderBy(field="treats.confidence", direction="desc")],
     )
 
     print("Query 3: High-confidence treatments for breast cancer")
@@ -500,25 +583,29 @@ def example_queries():
     print(query3.model_dump_json(indent=2, by_alias=True))
     print("\nCypher:")
     print(translator.translate(query3))
-    print("\n" + "="*80 + "\n")
+    print("\n" + "=" * 80 + "\n")
 
     # Example 4: Aggregation - "Count drugs by disease they treat"
     query4 = GraphQuery(
         match=MatchPattern(
             nodes=[
                 Node(variable="drug", type=NodeType.DRUG),
-                Node(variable="disease", type=NodeType.DISEASE)
+                Node(variable="disease", type=NodeType.DISEASE),
             ],
             relationships=[
-                Relationship(**{"from": "drug", "to": "disease", "type": RelationshipType.TREATS})
-            ]
+                Relationship(
+                    **{"from": "drug", "to": "disease", "type": RelationshipType.TREATS}
+                )
+            ],
         ),
         **{"return": ["disease.name"]},
         aggregations=[
-            Aggregation(function=AggregationFunction.COUNT, field="drug", alias="drug_count")
+            Aggregation(
+                function=AggregationFunction.COUNT, field="drug", alias="drug_count"
+            )
         ],
         order_by=[OrderBy(field="drug_count", direction="desc")],
-        limit=20
+        limit=20,
     )
 
     print("Query 4: Count drugs by disease")

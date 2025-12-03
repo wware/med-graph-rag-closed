@@ -6,10 +6,11 @@ import os
 import sys
 
 # Set environment variables for local docker-compose
-os.environ['OPENSEARCH_HOST'] = 'localhost'
-os.environ['OPENSEARCH_PORT'] = '9200'
+os.environ["OPENSEARCH_HOST"] = "localhost"
+os.environ["OPENSEARCH_PORT"] = "9200"
 
 from src.ingestion.pipeline import OpenSearchIndexer
+
 
 def test_connection():
     """Test connection to local OpenSearch"""
@@ -21,8 +22,8 @@ def test_connection():
     try:
         # Initialize indexer
         indexer = OpenSearchIndexer(
-            index_name='medical-papers',
-            create_index=True  # Will create index if it doesn't exist
+            index_name="medical-papers",
+            create_index=True,  # Will create index if it doesn't exist
         )
 
         # Test cluster health
@@ -33,7 +34,7 @@ def test_connection():
         print()
 
         # List indices
-        indices = indexer.client.cat.indices(format='json')
+        indices = indexer.client.cat.indices(format="json")
         print("Available indices:")
         for idx in indices:
             print(f"  - {idx['index']} ({idx['docs.count']} docs, {idx['store.size']})")
@@ -49,6 +50,7 @@ def test_connection():
         print("  docker-compose up -d")
         return False
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     success = test_connection()
     sys.exit(0 if success else 1)

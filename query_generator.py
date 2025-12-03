@@ -15,9 +15,11 @@ from graph_query_language import GraphQuery, CypherTranslator
 class QueryGenerator:
     """Generate graph queries from natural language using an LLM"""
 
-    def __init__(self,
-                 aws_region: str = 'us-east-1',
-                 model_id: str = 'anthropic.claude-3-5-sonnet-20241022-v2:0'):
+    def __init__(
+        self,
+        aws_region: str = "us-east-1",
+        model_id: str = "anthropic.claude-3-5-sonnet-20241022-v2:0",
+    ):
         """
         Initialize the query generator
 
@@ -25,17 +27,17 @@ class QueryGenerator:
             aws_region: AWS region for Bedrock
             model_id: Bedrock model ID to use
         """
-        self.bedrock = boto3.client('bedrock-runtime', region_name=aws_region)
+        self.bedrock = boto3.client("bedrock-runtime", region_name=aws_region)
         self.model_id = model_id
 
         # Load the system prompt
         prompt_path = Path(__file__).parent / "llm_query_generation_prompt.md"
-        with open(prompt_path, 'r') as f:
+        with open(prompt_path, "r") as f:
             self.system_prompt = f.read()
 
-    def generate_query(self,
-                      natural_language: str,
-                      conversation_history: Optional[list] = None) -> Dict[str, Any]:
+    def generate_query(
+        self, natural_language: str, conversation_history: Optional[list] = None
+    ) -> Dict[str, Any]:
         """
         Generate a graph query from natural language
 
@@ -53,10 +55,7 @@ class QueryGenerator:
         """
         # Build messages
         messages = conversation_history or []
-        messages.append({
-            "role": "user",
-            "content": natural_language
-        })
+        messages.append({"role": "user", "content": natural_language})
 
         # Call Bedrock
         try:
@@ -71,7 +70,7 @@ class QueryGenerator:
                 "query": None,
                 "query_json": None,
                 "explanation": None,
-                "cypher": None
+                "cypher": None,
             }
 
     def _call_llm(self, messages: list) -> str:
@@ -81,18 +80,18 @@ class QueryGenerator:
             "max_tokens": 4000,
             "system": self.system_prompt,
             "messages": messages,
-            "temperature": 0.0  # Deterministic for query generation
+            "temperature": 0.0,  # Deterministic for query generation
         }
 
         response = self.bedrock.invoke_model(
             modelId=self.model_id,
-            contentType='application/json',
-            accept='application/json',
-            body=json.dumps(request_body)
+            contentType="application/json",
+            accept="application/json",
+            body=json.dumps(request_body),
         )
 
-        response_body = json.loads(response['body'].read())
-        return response_body['content'][0]['text']
+        response_body = json.loads(response["body"].read())
+        return response_body["content"][0]["text"]
 
     def _parse_llm_response(self, llm_response: str) -> Dict[str, Any]:
         """
@@ -111,7 +110,7 @@ class QueryGenerator:
         """
         # Extract explanation (text before JSON)
         explanation_lines = []
-        json_start = llm_response.find('{')
+        json_start = llm_response.find("{")
 
         if json_start == -1:
             return {
@@ -119,7 +118,7 @@ class QueryGenerator:
                 "query": None,
                 "query_json": None,
                 "explanation": llm_response,
-                "cypher": None
+                "cypher": None,
             }
 
         explanation = llm_response[:json_start].strip()
@@ -133,7 +132,7 @@ class QueryGenerator:
                 "query": None,
                 "query_json": None,
                 "explanation": explanation,
-                "cypher": None
+                "cypher": None,
             }
 
         try:
@@ -152,7 +151,7 @@ class QueryGenerator:
                 "query_json": query_dict,
                 "explanation": explanation,
                 "cypher": cypher,
-                "error": None
+                "error": None,
             }
 
         except json.JSONDecodeError as e:
@@ -161,30 +160,30 @@ class QueryGenerator:
                 "query": None,
                 "query_json": None,
                 "explanation": explanation,
-                "cypher": None
+                "cypher": None,
             }
         except Exception as e:
             return {
                 "error": f"Query validation error: {str(e)}",
                 "query": None,
-                "query_json": query_dict if 'query_dict' in locals() else None,
+                "query_json": query_dict if "query_dict" in locals() else None,
                 "explanation": explanation,
-                "cypher": None
+                "cypher": None,
             }
 
     def _extract_json(self, text: str) -> Optional[str]:
         """Extract JSON object from text, handling nested braces"""
-        if not text.startswith('{'):
+        if not text.startswith("{"):
             return None
 
         brace_count = 0
         for i, char in enumerate(text):
-            if char == '{':
+            if char == "{":
                 brace_count += 1
-            elif char == '}':
+            elif char == "}":
                 brace_count -= 1
                 if brace_count == 0:
-                    return text[:i+1]
+                    return text[: i + 1]
 
         return None
 
@@ -201,7 +200,7 @@ class QueryGenerator:
             try:
                 question = input("\nYour question: ").strip()
 
-                if question.lower() in ['exit', 'quit', 'q']:
+                if question.lower() in ["exit", "quit", "q"]:
                     print("Goodbye!")
                     break
 
@@ -211,9 +210,9 @@ class QueryGenerator:
                 print("\nGenerating query...")
                 result = self.generate_query(question, conversation_history)
 
-                if result['error']:
+                if result["error"]:
                     print(f"\n❌ Error: {result['error']}")
-                    if result['explanation']:
+                    if result["explanation"]:
                         print(f"\nLLM Response:\n{result['explanation']}")
                     continue
 
@@ -221,20 +220,19 @@ class QueryGenerator:
                 print(f"\nExplanation:\n{result['explanation']}")
 
                 print(f"\nJSON Query:")
-                print(json.dumps(result['query_json'], indent=2))
+                print(json.dumps(result["query_json"], indent=2))
 
                 print(f"\nCypher Translation:")
-                print(result['cypher'])
+                print(result["cypher"])
 
                 # Add to conversation history for context
-                conversation_history.append({
-                    "role": "user",
-                    "content": question
-                })
-                conversation_history.append({
-                    "role": "assistant",
-                    "content": f"{result['explanation']}\n\n```json\n{json.dumps(result['query_json'], indent=2)}\n```"
-                })
+                conversation_history.append({"role": "user", "content": question})
+                conversation_history.append(
+                    {
+                        "role": "assistant",
+                        "content": f"{result['explanation']}\n\n```json\n{json.dumps(result['query_json'], indent=2)}\n```",
+                    }
+                )
 
                 # Keep conversation history manageable
                 if len(conversation_history) > 10:
@@ -258,28 +256,28 @@ def example_usage():
         "What are the risks associated with BRCA1 mutations?",
         "Are there any contradictions about metformin treating diabetes?",
         "What biological pathways does BRCA1 affect?",
-        "For a patient with BRCA1 mutations and breast cancer, what are high-confidence treatment options?"
+        "For a patient with BRCA1 mutations and breast cancer, what are high-confidence treatment options?",
     ]
 
     for i, question in enumerate(questions, 1):
         print(f"\n{'='*80}")
         print(f"Example {i}: {question}")
-        print('='*80)
+        print("=" * 80)
 
         result = generator.generate_query(question)
 
-        if result['error']:
+        if result["error"]:
             print(f"❌ Error: {result['error']}")
             continue
 
         print(f"\n{result['explanation']}")
         print(f"\nJSON Query:")
-        print(json.dumps(result['query_json'], indent=2))
+        print(json.dumps(result["query_json"], indent=2))
         print(f"\nCypher:")
-        print(result['cypher'])
+        print(result["cypher"])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # For testing, run interactive session
     generator = QueryGenerator()
     generator.interactive_session()
